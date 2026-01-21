@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -225,11 +225,12 @@ Be specific about ${location || 'the Indian market'} - mention actual neighborho
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Analysis error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Analysis failed';
     return new Response(
       JSON.stringify({ 
-        error: error.message || 'Analysis failed',
+        error: errorMessage,
         details: 'Please try again with more details about your business idea.'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
