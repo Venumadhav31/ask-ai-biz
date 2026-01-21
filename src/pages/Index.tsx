@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Header } from '@/components/Header';
 import { ChatTab } from '@/components/ChatTab';
 import { CompetitionTab } from '@/components/CompetitionTab';
-import { BudgetTab } from '@/components/BudgetTab';
+import { ProfitLossTab } from '@/components/ProfitLossTab';
 import { RoadmapTab } from '@/components/RoadmapTab';
 import { DashboardTab } from '@/components/DashboardTab';
+import { MarketTab } from '@/components/MarketTab';
 import { TestSuiteModal } from '@/components/TestSuiteModal';
 import { BusinessAnalysis } from '@/types/analysis';
 
@@ -29,17 +30,17 @@ const Index = () => {
         {activeTab === 'chat' && (
           <ChatTab onAnalysisComplete={handleAnalysisComplete} />
         )}
+        {activeTab === 'dashboard' && (
+          <DashboardTab analysis={currentAnalysis} />
+        )}
+        {activeTab === 'market' && (
+          <MarketTab analysis={currentAnalysis} />
+        )}
         {activeTab === 'competition' && (
           <CompetitionTab analysis={currentAnalysis} />
         )}
-        {activeTab === 'budget' && (
-          <BudgetTab analysis={currentAnalysis} />
-        )}
-        {activeTab === 'roadmap' && (
-          <RoadmapTab analysis={currentAnalysis} />
-        )}
-        {activeTab === 'dashboard' && (
-          <DashboardTab analysis={currentAnalysis} />
+        {activeTab === 'profitloss' && (
+          <ProfitLossTab analysis={currentAnalysis} />
         )}
       </main>
 
