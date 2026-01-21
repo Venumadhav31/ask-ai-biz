@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { IndianRupee, TrendingUp, Calendar, Info, ChevronDown, ChevronUp } from 'lucide-react';
-import { BusinessAnalysis, YearData, MonthData } from '@/types/analysis';
+import { IndianRupee, TrendingUp, TrendingDown, Calendar, Info, ChevronUp } from 'lucide-react';
+import { BusinessAnalysis } from '@/types/analysis';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,18 +12,16 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  LineChart,
-  Line,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 
-interface BudgetTabProps {
+interface ProfitLossTabProps {
   analysis: BusinessAnalysis | null;
 }
 
 type ViewLevel = 'yearly' | 'monthly' | 'daily';
 
-export function BudgetTab({ analysis }: BudgetTabProps) {
+export function ProfitLossTab({ analysis }: ProfitLossTabProps) {
   const [viewLevel, setViewLevel] = useState<ViewLevel>('yearly');
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -32,10 +30,10 @@ export function BudgetTab({ analysis }: BudgetTabProps) {
   if (!analysis) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <IndianRupee className="w-16 h-16 text-muted-foreground/30 mb-4" />
+        <TrendingDown className="w-16 h-16 text-muted-foreground/30 mb-4" />
         <h3 className="text-lg font-medium mb-2">No Analysis Yet</h3>
         <p className="text-muted-foreground max-w-md">
-          Submit a business idea in the Chat tab to see budget projections.
+          Submit a business idea in the Chat tab to see profit & loss projections.
         </p>
       </div>
     );
