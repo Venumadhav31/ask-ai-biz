@@ -37,8 +37,8 @@
     --background: 0 0% 100%;
     --foreground: 265 4% 12.9%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 265 4% 12.9%;
+    --card: 209 81% 21%;
+    --card-foreground: 300 6% 99%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 265 4% 12.9%;
@@ -75,11 +75,11 @@
     --avoid-foreground: 0 0% 98%;
 
     /* Chart Colors */
-    --chart-1: 215 83% 51%;
-    --chart-2: 103 77% 66%;
-    --chart-3: 0 81% 87%;
-    --chart-4: 80 79% 53%;
-    --chart-5: 0 74% 60%;
+    --chart-1: 41 22.2% 64.6%;
+    --chart-2: 185 11.8% 60%;
+    --chart-3: 227 7% 39.8%;
+    --chart-4: 84 18.9% 82.8%;
+    --chart-5: 70 18.8% 76.9%;
 
     /* Gradients */
     --gradient-hero: linear-gradient(135deg, hsl(217 91% 60% / 0.2) 0%, hsl(280 65% 60% / 0.1) 100%);
