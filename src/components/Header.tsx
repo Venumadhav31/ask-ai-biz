@@ -2,6 +2,7 @@ import { Brain, FlaskConical, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { UserMenu } from './UserMenu';
 
 interface HeaderProps {
   activeTab: string;
@@ -15,6 +16,7 @@ const tabs = [
   { id: 'market', label: 'Market' },
   { id: 'competition', label: 'Competition' },
   { id: 'profitloss', label: 'Profit & Loss' },
+  { id: 'roadmap', label: 'Roadmap' },
 ];
 
 export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps) {
@@ -40,7 +42,7 @@ export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps)
         </div>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-secondary/30 border border-border/50">
+        <nav className="hidden lg:flex items-center gap-1 p-1 rounded-xl bg-secondary/30 border border-border/50">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -66,17 +68,20 @@ export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps)
             <FlaskConical className="w-4 h-4" />
             Test Suite
           </Button>
+          <UserMenu />
         </div>
 
         {/* Mobile Menu Toggle */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
+        <div className="flex md:hidden items-center gap-2">
+          <UserMenu />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
+        </div>
       </div>
 
       {/* Mobile Navigation */}

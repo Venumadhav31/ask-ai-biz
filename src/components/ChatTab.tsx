@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, MapPin, IndianRupee, Loader2, AlertTriangle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Send, MapPin, IndianRupee, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,17 +7,21 @@ import { ChatMessage, BusinessAnalysis } from '@/types/analysis';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { VerdictCard } from './VerdictCard';
+import { ChatGreeting } from './ChatGreeting';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ChatTabProps {
   onAnalysisComplete: (analysis: BusinessAnalysis) => void;
 }
 
 export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [location, setLocation] = useState('');
   const [budget, setBudget] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showGreeting, setShowGreeting] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -28,9 +32,37 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
     scrollToBottom();
   }, [messages]);
 
+  // Save analysis to database if user is logged in
+  const saveAnalysis = async (analysis: BusinessAnalysis, businessIdea: string) => {
+    if (!user) return;
+
+    try {
+      const insertData = {
+        user_id: user.id,
+        business_idea: businessIdea,
+        location: location || null,
+        budget: budget || null,
+        verdict: analysis.verdict,
+        score: analysis.score,
+        summary: analysis.summary,
+        analysis_data: JSON.parse(JSON.stringify(analysis)),
+        ai_model_used: 'gemini',
+      };
+      
+      const { error } = await supabase.from('business_analyses').insert(insertData);
+      if (error) {
+        console.error('Failed to save analysis:', error);
+      }
+    } catch (error) {
+      console.error('Failed to save analysis:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    setShowGreeting(false);
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -40,13 +72,14 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-business', {
         body: {
-          businessIdea: input,
+          businessIdea: currentInput,
           location: location || 'Not specified',
           budget: budget || 'Not specified',
         },
@@ -62,6 +95,9 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
 
       const analysis = data as BusinessAnalysis;
       onAnalysisComplete(analysis);
+
+      // Save to database
+      await saveAnalysis(analysis, currentInput);
 
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -112,7 +148,10 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-        {messages.length === 0 && (
+        {/* Auto-greeting on first load */}
+        {showGreeting && messages.length === 0 && <ChatGreeting />}
+
+        {messages.length === 0 && !showGreeting && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center mb-4">
               <AlertCircle className="w-8 h-8 text-primary" />
