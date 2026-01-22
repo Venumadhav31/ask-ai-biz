@@ -42,6 +42,9 @@ const Index = () => {
         {activeTab === 'profitloss' && (
           <ProfitLossTab analysis={currentAnalysis} />
         )}
+        {activeTab === 'roadmap' && (
+          <RoadmapTab analysis={currentAnalysis} />
+        )}
       </main>
 
       <TestSuiteModal

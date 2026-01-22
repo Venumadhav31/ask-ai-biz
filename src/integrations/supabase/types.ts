@@ -14,7 +14,138 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      business_analyses: {
+        Row: {
+          ai_model_used: string | null
+          analysis_data: Json | null
+          budget: string | null
+          business_idea: string
+          created_at: string
+          id: string
+          location: string | null
+          score: number | null
+          summary: string | null
+          user_id: string
+          verdict: string | null
+        }
+        Insert: {
+          ai_model_used?: string | null
+          analysis_data?: Json | null
+          budget?: string | null
+          business_idea: string
+          created_at?: string
+          id?: string
+          location?: string | null
+          score?: number | null
+          summary?: string | null
+          user_id: string
+          verdict?: string | null
+        }
+        Update: {
+          ai_model_used?: string | null
+          analysis_data?: Json | null
+          budget?: string | null
+          business_idea?: string
+          created_at?: string
+          id?: string
+          location?: string | null
+          score?: number | null
+          summary?: string | null
+          user_id?: string
+          verdict?: string | null
+        }
+        Relationships: []
+      }
+      market_trends: {
+        Row: {
+          created_at: string
+          growth_rate: number | null
+          id: string
+          investment_volume: number | null
+          market_size: number | null
+          month: number
+          sector: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          growth_rate?: number | null
+          id?: string
+          investment_volume?: number | null
+          market_size?: number | null
+          month: number
+          sector: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          growth_rate?: number | null
+          id?: string
+          investment_volume?: number | null
+          market_size?: number | null
+          month?: number
+          sector?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          preferred_ai_model: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          preferred_ai_model?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          preferred_ai_model?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      usage_analytics: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
