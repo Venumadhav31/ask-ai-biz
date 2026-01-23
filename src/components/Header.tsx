@@ -12,11 +12,11 @@ interface HeaderProps {
 
 const tabs = [
   { id: 'chat', label: 'Chat' },
+  { id: 'roadmap', label: 'Roadmap' },
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'market', label: 'Market' },
   { id: 'competition', label: 'Competition' },
   { id: 'profitloss', label: 'Profit & Loss' },
-  { id: 'roadmap', label: 'Roadmap' },
 ];
 
 export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps) {
