@@ -37,32 +37,89 @@ interface DecisionResult {
 
 function parseBusinessType(idea: string): string {
   const lowerIdea = idea.toLowerCase();
-  if (lowerIdea.includes('restaurant') || lowerIdea.includes('food') || lowerIdea.includes('kitchen') || lowerIdea.includes('cafe')) return 'food';
-  if (lowerIdea.includes('tech') || lowerIdea.includes('software') || lowerIdea.includes('app') || lowerIdea.includes('saas')) return 'tech';
-  if (lowerIdea.includes('retail') || lowerIdea.includes('shop') || lowerIdea.includes('store')) return 'retail';
-  if (lowerIdea.includes('service') || lowerIdea.includes('consulting') || lowerIdea.includes('agency')) return 'service';
-  if (lowerIdea.includes('health') || lowerIdea.includes('fitness') || lowerIdea.includes('gym')) return 'health';
-  if (lowerIdea.includes('education') || lowerIdea.includes('training') || lowerIdea.includes('coaching')) return 'education';
+  
+  // Street food & quick service
+  if (lowerIdea.includes('panipuri') || lowerIdea.includes('pani puri') || lowerIdea.includes('chaat') || 
+      lowerIdea.includes('samosa') || lowerIdea.includes('vada pav') || lowerIdea.includes('momos') ||
+      lowerIdea.includes('street food') || lowerIdea.includes('stall') || lowerIdea.includes('cart')) return 'streetfood';
+  
+  // Bakery
+  if (lowerIdea.includes('bakery') || lowerIdea.includes('cake') || lowerIdea.includes('pastry') || 
+      lowerIdea.includes('bread') || lowerIdea.includes('confectionery')) return 'bakery';
+  
+  // Restaurant & food service
+  if (lowerIdea.includes('restaurant') || lowerIdea.includes('food') || lowerIdea.includes('kitchen') || 
+      lowerIdea.includes('cafe') || lowerIdea.includes('coffee') || lowerIdea.includes('tea') ||
+      lowerIdea.includes('tiffin') || lowerIdea.includes('mess') || lowerIdea.includes('dhaba')) return 'food';
+  
+  // Tech
+  if (lowerIdea.includes('tech') || lowerIdea.includes('software') || lowerIdea.includes('app') || 
+      lowerIdea.includes('saas') || lowerIdea.includes('it ') || lowerIdea.includes('digital')) return 'tech';
+  
+  // Retail
+  if (lowerIdea.includes('retail') || lowerIdea.includes('shop') || lowerIdea.includes('store') ||
+      lowerIdea.includes('kirana') || lowerIdea.includes('grocery') || lowerIdea.includes('supermarket')) return 'retail';
+  
+  // Service
+  if (lowerIdea.includes('service') || lowerIdea.includes('consulting') || lowerIdea.includes('agency') ||
+      lowerIdea.includes('salon') || lowerIdea.includes('parlour') || lowerIdea.includes('laundry')) return 'service';
+  
+  // Health & fitness
+  if (lowerIdea.includes('health') || lowerIdea.includes('fitness') || lowerIdea.includes('gym') ||
+      lowerIdea.includes('yoga') || lowerIdea.includes('clinic') || lowerIdea.includes('pharmacy')) return 'health';
+  
+  // Education
+  if (lowerIdea.includes('education') || lowerIdea.includes('training') || lowerIdea.includes('coaching') ||
+      lowerIdea.includes('tuition') || lowerIdea.includes('school') || lowerIdea.includes('academy')) return 'education';
+  
+  // Agriculture & farming
+  if (lowerIdea.includes('farm') || lowerIdea.includes('agri') || lowerIdea.includes('dairy') ||
+      lowerIdea.includes('poultry') || lowerIdea.includes('organic') || lowerIdea.includes('nursery')) return 'agriculture';
+  
+  // Manufacturing
+  if (lowerIdea.includes('manufacturing') || lowerIdea.includes('factory') || lowerIdea.includes('production') ||
+      lowerIdea.includes('unit') || lowerIdea.includes('industry')) return 'manufacturing';
+  
   return 'general';
 }
 
 function parseBudget(budget: string): number {
   const cleanBudget = budget.replace(/[₹$,\s]/g, '').toLowerCase();
   let multiplier = 1;
-  if (cleanBudget.includes('lakh') || cleanBudget.includes('lac')) multiplier = 100000;
-  else if (cleanBudget.includes('cr') || cleanBudget.includes('crore')) multiplier = 10000000;
-  else if (cleanBudget.includes('k')) multiplier = 1000;
-  else if (cleanBudget.includes('m')) multiplier = 1000000;
+  
+  // Handle various Indian budget formats
+  if (cleanBudget.includes('lakh') || cleanBudget.includes('lac') || cleanBudget.includes('lakhs')) {
+    multiplier = 100000;
+  } else if (cleanBudget.includes('cr') || cleanBudget.includes('crore')) {
+    multiplier = 10000000;
+  } else if (cleanBudget.endsWith('l') && !cleanBudget.includes('lakh')) {
+    // Handle "5l", "10l" format (common shorthand for lakhs)
+    multiplier = 100000;
+  } else if (cleanBudget.includes('k')) {
+    multiplier = 1000;
+  } else if (cleanBudget.includes('m') && !cleanBudget.includes('lakh')) {
+    multiplier = 1000000;
+  }
+  
   const numMatch = cleanBudget.match(/[\d.]+/);
-  return numMatch ? parseFloat(numMatch[0]) * multiplier : 500000;
+  const amount = numMatch ? parseFloat(numMatch[0]) * multiplier : 500000;
+  
+  console.log(`Budget parsed: "${budget}" -> ${amount}`);
+  return amount;
 }
 
 function getLocationTier(location: string): number {
-  const tier1 = ['mumbai', 'delhi', 'bangalore', 'bengaluru', 'chennai', 'hyderabad', 'kolkata', 'pune'];
-  const tier2 = ['ahmedabad', 'jaipur', 'lucknow', 'chandigarh', 'indore', 'bhopal', 'nagpur', 'surat'];
+  const tier1 = ['mumbai', 'delhi', 'bangalore', 'bengaluru', 'chennai', 'hyderabad', 'kolkata', 'pune', 'gurgaon', 'noida'];
+  const tier2 = ['ahmedabad', 'jaipur', 'lucknow', 'chandigarh', 'indore', 'bhopal', 'nagpur', 'surat', 'kochi', 'coimbatore', 'visakhapatnam', 'patna', 'vadodara', 'thiruvananthapuram'];
+  const tier3 = ['tirupati', 'vijayawada', 'guntur', 'nellore', 'kurnool', 'kakinada', 'rajahmundry', 'kadapa', 'anantapur', 'eluru', 'ongole', 'vizianagaram', 'proddatur', 'chittoor', 'hindupur', 'machilipatnam', 'tenali', 'adoni', 'madanapalle', 'srikakulam', 'dharmavaram', 'gudivada', 'narasaraopet', 'tadipatri', 'mangalore', 'mysore', 'hubli', 'belgaum'];
+  
   const lowerLoc = location.toLowerCase();
   if (tier1.some(city => lowerLoc.includes(city))) return 1;
   if (tier2.some(city => lowerLoc.includes(city))) return 2;
+  if (tier3.some(city => lowerLoc.includes(city))) return 3;
+  
+  // Default to tier 3 for unknown locations (small towns)
+  console.log(`Location tier for "${location}": 3 (default)`);
   return 3;
 }
 
@@ -71,34 +128,75 @@ function calculateDecision(businessIdea: string, location: string, budget: strin
   const budgetAmount = parseBudget(budget);
   const locationTier = getLocationTier(location);
 
-  // Industry benchmarks for scoring
-  const industryBenchmarks: Record<string, { minBudget: number; margin: number; growth: number; competition: number }> = {
-    food: { minBudget: 500000, margin: 0.18, growth: 12, competition: 0.7 },
-    tech: { minBudget: 300000, margin: 0.35, growth: 25, competition: 0.5 },
-    retail: { minBudget: 800000, margin: 0.12, growth: 8, competition: 0.8 },
-    service: { minBudget: 200000, margin: 0.40, growth: 15, competition: 0.4 },
-    health: { minBudget: 1000000, margin: 0.25, growth: 18, competition: 0.5 },
-    education: { minBudget: 400000, margin: 0.30, growth: 20, competition: 0.45 },
-    general: { minBudget: 500000, margin: 0.20, growth: 10, competition: 0.6 },
+  console.log(`Business type: ${businessType}, Budget: ₹${budgetAmount}, Location tier: ${locationTier}`);
+
+  // Industry benchmarks - expanded with more business types
+  const industryBenchmarks: Record<string, { minBudget: number; margin: number; growth: number; competition: number; tierBonus: number[] }> = {
+    streetfood: { minBudget: 50000, margin: 0.35, growth: 18, competition: 0.4, tierBonus: [0, 5, 15] }, // Low capital, high margin, great for small towns
+    bakery: { minBudget: 200000, margin: 0.28, growth: 14, competition: 0.5, tierBonus: [0, 8, 12] },
+    food: { minBudget: 500000, margin: 0.18, growth: 12, competition: 0.7, tierBonus: [0, 5, 8] },
+    tech: { minBudget: 300000, margin: 0.35, growth: 25, competition: 0.5, tierBonus: [10, 0, -10] }, // Better in big cities
+    retail: { minBudget: 300000, margin: 0.15, growth: 10, competition: 0.6, tierBonus: [0, 5, 10] },
+    service: { minBudget: 100000, margin: 0.45, growth: 16, competition: 0.35, tierBonus: [0, 8, 12] },
+    health: { minBudget: 800000, margin: 0.25, growth: 18, competition: 0.5, tierBonus: [5, 10, 5] },
+    education: { minBudget: 200000, margin: 0.35, growth: 22, competition: 0.4, tierBonus: [0, 10, 15] }, // Great for tier 2/3
+    agriculture: { minBudget: 300000, margin: 0.22, growth: 15, competition: 0.3, tierBonus: [-5, 10, 20] }, // Best for rural
+    manufacturing: { minBudget: 1000000, margin: 0.18, growth: 12, competition: 0.5, tierBonus: [-5, 5, 15] },
+    general: { minBudget: 300000, margin: 0.20, growth: 12, competition: 0.5, tierBonus: [0, 5, 8] },
   };
 
-  const benchmark = industryBenchmarks[businessType];
+  const benchmark = industryBenchmarks[businessType] || industryBenchmarks.general;
+  const tierBonusIndex = locationTier - 1;
+  const tierBonus = benchmark.tierBonus[tierBonusIndex] || 0;
 
-  // Calculate scoring factors (0-100 scale)
-  const budgetFit = Math.min(100, (budgetAmount / benchmark.minBudget) * 70);
-  const marketSize = locationTier === 1 ? 85 : locationTier === 2 ? 65 : 45;
-  const competition = Math.round((1 - benchmark.competition) * 100);
+  // Calculate scoring factors (0-100 scale) with tier-specific adjustments
+  const budgetRatio = budgetAmount / benchmark.minBudget;
+  let budgetFit: number;
+  if (budgetRatio >= 2) {
+    budgetFit = 95; // Well capitalized
+  } else if (budgetRatio >= 1.5) {
+    budgetFit = 85;
+  } else if (budgetRatio >= 1) {
+    budgetFit = 75;
+  } else if (budgetRatio >= 0.7) {
+    budgetFit = 60;
+  } else if (budgetRatio >= 0.5) {
+    budgetFit = 45;
+  } else {
+    budgetFit = 30;
+  }
+
+  // Market size varies by tier but some businesses do BETTER in smaller towns
+  const baseMarketSize = locationTier === 1 ? 85 : locationTier === 2 ? 70 : 55;
+  const marketSize = Math.min(100, baseMarketSize + tierBonus);
+
+  // Competition is often LOWER in smaller towns
+  const baseCompetition = Math.round((1 - benchmark.competition) * 100);
+  const competitionBonus = locationTier === 3 ? 15 : locationTier === 2 ? 8 : 0;
+  const competition = Math.min(100, baseCompetition + competitionBonus);
+
   const industryGrowth = Math.min(100, benchmark.growth * 4);
-  const locationViability = locationTier === 1 ? 90 : locationTier === 2 ? 70 : 50;
   
-  // Risk calculation based on multiple factors
-  const riskFactors = [
-    budgetAmount < benchmark.minBudget ? 25 : 0,
-    benchmark.competition > 0.6 ? 20 : 0,
-    locationTier === 3 ? 15 : 0,
-    benchmark.growth < 10 ? 10 : 0,
-  ];
-  const riskLevel = 100 - riskFactors.reduce((a, b) => a + b, 0);
+  // Location viability with tier bonus
+  const baseLocationViability = locationTier === 1 ? 85 : locationTier === 2 ? 70 : 55;
+  const locationViability = Math.min(100, baseLocationViability + tierBonus);
+  
+  // Risk calculation - more nuanced
+  let riskScore = 100;
+  if (budgetRatio < 0.5) riskScore -= 30;
+  else if (budgetRatio < 0.7) riskScore -= 15;
+  else if (budgetRatio < 1) riskScore -= 8;
+  
+  if (benchmark.competition > 0.6) riskScore -= 15;
+  else if (benchmark.competition > 0.5) riskScore -= 8;
+  
+  // Small towns actually have LOWER risk for certain businesses
+  if (locationTier === 3 && tierBonus > 0) riskScore += 5;
+  else if (locationTier === 3) riskScore -= 10;
+  
+  if (benchmark.growth < 10) riskScore -= 10;
+  
+  const riskLevel = Math.max(20, riskScore);
 
   const factors: ScoringFactors = {
     marketSize,
@@ -109,14 +207,16 @@ function calculateDecision(businessIdea: string, location: string, budget: strin
     riskLevel,
   };
 
+  console.log('Scoring factors:', JSON.stringify(factors));
+
   // Weighted score calculation
   const weights = {
-    marketSize: 0.20,
-    competition: 0.15,
-    budgetFit: 0.25,
+    marketSize: 0.18,
+    competition: 0.12,
+    budgetFit: 0.28, // Budget fit is most important
     locationViability: 0.15,
     industryGrowth: 0.15,
-    riskLevel: 0.10,
+    riskLevel: 0.12,
   };
 
   const score = Math.round(
@@ -128,34 +228,36 @@ function calculateDecision(businessIdea: string, location: string, budget: strin
     factors.riskLevel * weights.riskLevel
   );
 
-  // Verdict determination (rule-based, not AI)
+  // Verdict determination (rule-based)
   let verdict: 'GO' | 'CAUTION' | 'AVOID';
-  if (score >= 70 && factors.riskLevel >= 60) {
+  if (score >= 68 && factors.riskLevel >= 55 && factors.budgetFit >= 60) {
     verdict = 'GO';
-  } else if (score >= 45 || (score >= 35 && factors.industryGrowth >= 70)) {
+  } else if (score >= 50 || (score >= 40 && factors.industryGrowth >= 60)) {
     verdict = 'CAUTION';
   } else {
     verdict = 'AVOID';
   }
 
-  // Financial calculations
-  const monthlyRevenue = budgetAmount * benchmark.margin * 0.15;
-  const monthlyExpenses = budgetAmount * 0.08;
+  console.log(`Calculated score: ${score}, verdict: ${verdict}`);
+
+  // Financial calculations based on business type
+  const monthlyRevenue = (budgetAmount * benchmark.margin * 0.12) * (locationTier === 1 ? 1.2 : locationTier === 2 ? 1 : 0.85);
+  const monthlyExpenses = budgetAmount * 0.06 * (locationTier === 1 ? 1.3 : locationTier === 2 ? 1 : 0.75);
   const monthlyProfit = monthlyRevenue - monthlyExpenses;
-  const breakEvenMonths = monthlyProfit > 0 ? Math.ceil(budgetAmount / monthlyProfit) : 36;
+  const breakEvenMonths = monthlyProfit > 0 ? Math.ceil(budgetAmount * 0.7 / monthlyProfit) : 36;
   const roi = Math.round(((monthlyProfit * 12) / budgetAmount) * 100);
 
-  // Competitor estimation
-  const baseCompetitors = locationTier === 1 ? 25 : locationTier === 2 ? 15 : 8;
-  const directCompetitors = Math.round(baseCompetitors * benchmark.competition);
-  const indirectCompetitors = Math.round(directCompetitors * 1.5);
+  // Competitor estimation - fewer in small towns
+  const baseCompetitors = locationTier === 1 ? 30 : locationTier === 2 ? 18 : 6;
+  const directCompetitors = Math.max(2, Math.round(baseCompetitors * benchmark.competition));
+  const indirectCompetitors = Math.round(directCompetitors * 1.4);
 
   return {
     verdict,
     score,
     factors,
-    breakEvenMonths: Math.min(breakEvenMonths, 36),
-    roi,
+    breakEvenMonths: Math.min(Math.max(breakEvenMonths, 6), 36),
+    roi: Math.max(roi, -20),
     directCompetitors,
     indirectCompetitors,
   };
