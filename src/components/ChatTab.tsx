@@ -62,6 +62,18 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    // Check if user is authenticated
+    if (!user) {
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '⚠️ Please sign in to analyze business ideas. Your analyses will be saved to your account.',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      return;
+    }
+
     setShowGreeting(false);
 
     const userMessage: ChatMessage = {
