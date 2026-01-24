@@ -180,36 +180,30 @@ Deno.serve(async (req) => {
 
     console.log(`AI verdict: ${aiAnalysis.verdict}, score: ${aiAnalysis.score}`);
 
-    // Build the final response structure
+    // Build the final response structure matching BusinessAnalysis interface
     const analysis = {
-      verdict: aiAnalysis.verdict,
-      score: aiAnalysis.score,
-      summary: aiAnalysis.summary,
+      verdict: aiAnalysis.verdict?.toUpperCase() || 'CAUTION',
+      score: aiAnalysis.score || 50,
+      summary: aiAnalysis.summary || 'Analysis complete.',
       marketAnalysis: {
-        marketSize: aiAnalysis.marketAnalysis?.marketSize || 'Analysis pending',
-        marketGrowth: aiAnalysis.marketAnalysis?.marketGrowth || 'Analysis pending',
-        threats: aiAnalysis.threats || [],
-        opportunities: aiAnalysis.opportunities || [],
+        size: aiAnalysis.marketAnalysis?.marketSize || 'Analysis pending',
+        growth: aiAnalysis.marketAnalysis?.marketGrowth || 'Analysis pending',
+        competition: `${aiAnalysis.competitionAnalysis?.directCompetitors || 10} direct, ${aiAnalysis.competitionAnalysis?.indirectCompetitors || 15} indirect`,
         explanation: aiAnalysis.marketAnalysis?.marketExplanation || aiAnalysis.expertInsights || '',
+      },
+      financialProjection: {
+        yearlyData: aiAnalysis.financialProjections || generateDefaultProjections(budget),
+        breakEvenMonths: aiAnalysis.financialAnalysis?.breakEvenMonths || 18,
+        roi: aiAnalysis.financialAnalysis?.roi || 15,
+        explanation: aiAnalysis.financialAnalysis?.financialExplanation || '',
       },
       competitionAnalysis: {
         directCompetitors: aiAnalysis.competitionAnalysis?.directCompetitors || 10,
         indirectCompetitors: aiAnalysis.competitionAnalysis?.indirectCompetitors || 15,
         competitiveAdvantage: aiAnalysis.competitionAnalysis?.competitiveAdvantage || '',
+        threats: aiAnalysis.threats || [],
+        opportunities: aiAnalysis.opportunities || [],
         explanation: aiAnalysis.competitionAnalysis?.competitionExplanation || '',
-      },
-      financialAnalysis: {
-        breakEvenMonths: aiAnalysis.financialAnalysis?.breakEvenMonths || 18,
-        roi: aiAnalysis.financialAnalysis?.roi || 15,
-        explanation: aiAnalysis.financialAnalysis?.financialExplanation || '',
-      },
-      scoringFactors: aiAnalysis.scoringFactors || {
-        marketSize: 70,
-        competition: 60,
-        budgetFit: 65,
-        locationViability: 70,
-        industryGrowth: 65,
-        riskLevel: 60,
       },
       roadmap: {
         phases: aiAnalysis.roadmapPhases || [],
@@ -218,7 +212,6 @@ Deno.serve(async (req) => {
       risks: aiAnalysis.risks || [],
       recommendations: aiAnalysis.recommendations || [],
       expertInsights: aiAnalysis.expertInsights || '',
-      financialProjections: aiAnalysis.financialProjections || generateDefaultProjections(budget),
     };
 
     return new Response(

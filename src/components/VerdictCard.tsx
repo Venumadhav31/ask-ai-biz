@@ -32,7 +32,10 @@ export function VerdictCard({ analysis, compact = false }: VerdictCardProps) {
     },
   };
 
-  const config = verdictConfig[analysis.verdict];
+  // Normalize verdict to uppercase and validate
+  const normalizedVerdict = (analysis.verdict?.toUpperCase?.() || 'CAUTION') as 'GO' | 'CAUTION' | 'AVOID';
+  const validVerdict = ['GO', 'CAUTION', 'AVOID'].includes(normalizedVerdict) ? normalizedVerdict : 'CAUTION';
+  const config = verdictConfig[validVerdict];
   const Icon = config.icon;
 
   if (compact) {
