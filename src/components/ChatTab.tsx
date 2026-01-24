@@ -93,7 +93,11 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
         throw new Error(data.error);
       }
 
-      const analysis = data as BusinessAnalysis;
+      // Extract analysis from response wrapper
+      const analysis = data.analysis as BusinessAnalysis;
+      if (!analysis || !analysis.verdict) {
+        throw new Error('Invalid analysis response');
+      }
       onAnalysisComplete(analysis);
 
       // Save to database
