@@ -33,9 +33,9 @@ interface MarketTrendRow {
 
 interface ProfileRow {
   id: string;
-  email: string | null;
   display_name: string | null;
   preferred_ai_model: string | null;
+  avatar_url: string | null;
   created_at: string;
 }
 
@@ -280,12 +280,12 @@ export default function Database() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground">Email</p>
-                        <p className="font-medium">{profile.email}</p>
-                      </div>
-                      <div>
                         <p className="text-sm text-muted-foreground">Display Name</p>
                         <p className="font-medium">{profile.display_name || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avatar</p>
+                        <p className="font-medium">{profile.avatar_url ? 'Set' : 'Not set'}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Preferred AI Model</p>
