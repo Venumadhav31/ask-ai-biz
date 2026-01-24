@@ -1,9 +1,26 @@
 /// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Dynamic CORS - allows preview URLs and production domain
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || '';
+  
+  // Allow Lovable preview URLs, localhost, and production domain
+  const allowedOrigins = [
+    'https://lovable.dev',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ];
+  
+  // Allow any lovable.app subdomain (preview URLs)
+  const isLovablePreview = origin.includes('.lovable.app') || origin.includes('.lovableproject.com');
+  const isAllowed = allowedOrigins.includes(origin) || isLovablePreview;
+  
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 interface AnalysisRequest {
   businessIdea: string;
@@ -159,6 +176,8 @@ Provide a thorough analysis with specific insights for the location mentioned. B
 // ============================================
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -222,7 +241,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Analysis error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Analysis failed' }),
+      JSON.stringify({ error: 'Analysis failed. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
