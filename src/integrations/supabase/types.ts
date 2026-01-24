@@ -94,7 +94,6 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           display_name: string | null
-          email: string | null
           id: string
           preferred_ai_model: string | null
           updated_at: string
@@ -104,7 +103,6 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
-          email?: string | null
           id?: string
           preferred_ai_model?: string | null
           updated_at?: string
@@ -114,7 +112,6 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
-          email?: string | null
           id?: string
           preferred_ai_model?: string | null
           updated_at?: string
@@ -128,21 +125,21 @@ export type Database = {
           created_at: string
           id: string
           metadata: Json | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           action_type: string
           created_at?: string
           id?: string
           metadata?: Json | null
-          user_id?: string | null
+          user_id?: string
         }
         Update: {
           action_type?: string
           created_at?: string
           id?: string
           metadata?: Json | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
