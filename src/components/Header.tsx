@@ -36,8 +36,8 @@ export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps)
             <Brain className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">BizFeasibility AI</h1>
-            <p className="text-xs text-muted-foreground hidden sm:block">Explainable Business Analysis</p>
+            <h1 className="text-lg font-semibold tracking-tight">MarketReady</h1>
+            <p className="text-xs text-muted-foreground hidden sm:block">AI Business Feasibility Analysis</p>
           </div>
         </div>
 
