@@ -1,17 +1,17 @@
 /// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 // Dynamic CORS - allows preview URLs and production domain
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get('origin') || '';
   
-  // Allow Lovable preview URLs, localhost, and production domain
   const allowedOrigins = [
     'https://lovable.dev',
     'http://localhost:5173',
     'http://localhost:3000',
   ];
   
-  // Allow any lovable.app subdomain (preview URLs)
   const isLovablePreview = origin.includes('.lovable.app') || origin.includes('.lovableproject.com');
   const isAllowed = allowedOrigins.includes(origin) || isLovablePreview;
   
@@ -22,21 +22,77 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-interface AnalysisRequest {
-  businessIdea: string;
-  location: string;
-  budget: string;
+// ============================================
+// INPUT VALIDATION
+// ============================================
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  data?: { businessIdea: string; location: string; budget: string };
+}
+
+function validateInput(body: unknown): ValidationResult {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Invalid request body' };
+  }
+
+  const { businessIdea, location, budget } = body as Record<string, unknown>;
+
+  // Validate businessIdea (required, 10-2000 chars)
+  if (!businessIdea || typeof businessIdea !== 'string') {
+    return { valid: false, error: 'Business idea is required' };
+  }
+  const trimmedIdea = businessIdea.trim();
+  if (trimmedIdea.length < 10) {
+    return { valid: false, error: 'Business idea must be at least 10 characters' };
+  }
+  if (trimmedIdea.length > 2000) {
+    return { valid: false, error: 'Business idea must be less than 2000 characters' };
+  }
+
+  // Validate location (optional, max 200 chars)
+  let trimmedLocation = '';
+  if (location) {
+    if (typeof location !== 'string') {
+      return { valid: false, error: 'Location must be a string' };
+    }
+    trimmedLocation = location.trim();
+    if (trimmedLocation.length > 200) {
+      return { valid: false, error: 'Location must be less than 200 characters' };
+    }
+  }
+
+  // Validate budget (optional, max 100 chars)
+  let trimmedBudget = '';
+  if (budget) {
+    if (typeof budget !== 'string') {
+      return { valid: false, error: 'Budget must be a string' };
+    }
+    trimmedBudget = budget.trim();
+    if (trimmedBudget.length > 100) {
+      return { valid: false, error: 'Budget must be less than 100 characters' };
+    }
+  }
+
+  return {
+    valid: true,
+    data: {
+      businessIdea: trimmedIdea,
+      location: trimmedLocation || 'Not specified',
+      budget: trimmedBudget || 'Not specified',
+    },
+  };
 }
 
 // ============================================
-// AI-ONLY ANALYSIS ENGINE
-// All decisions, scoring, and reasoning from AI
+// AI ANALYSIS ENGINE
 // ============================================
 
 async function analyzeWithAI(businessIdea: string, location: string, budget: string) {
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) {
-    throw new Error('LOVABLE_API_KEY not configured');
+    throw new Error('SERVICE_CONFIG_ERROR');
   }
 
   const systemPrompt = `You are an expert business analyst for Indian markets. Analyze the business idea and provide a comprehensive feasibility assessment.
@@ -80,8 +136,6 @@ IMPORTANT: Return your response as valid JSON matching this EXACT structure:
   "threats": ["<threat1>", "<threat2>", "<threat3>"],
   "opportunities": ["<opportunity1>", "<opportunity2>", "<opportunity3>"],
   "risks": [
-    {"risk": "<description>", "severity": "low" | "medium" | "high", "mitigation": "<how to handle>"},
-    {"risk": "<description>", "severity": "low" | "medium" | "high", "mitigation": "<how to handle>"},
     {"risk": "<description>", "severity": "low" | "medium" | "high", "mitigation": "<how to handle>"}
   ],
   "recommendations": ["<actionable recommendation 1>", "<actionable recommendation 2>", "<actionable recommendation 3>"],
@@ -104,25 +158,22 @@ IMPORTANT: Return your response as valid JSON matching this EXACT structure:
 SCORING GUIDELINES:
 - GO: Score 68+ with good budget fit and manageable risk
 - CAUTION: Score 45-67 or high-risk factors present
-- AVOID: Score below 45 or critical issues (regulatory, obsolete business model, severe underfunding)
+- AVOID: Score below 45 or critical issues
 
 Consider Indian-specific factors:
 - City tiers (Tier 1: Mumbai, Delhi, Bangalore; Tier 2: Jaipur, Lucknow; Tier 3: smaller towns)
 - Budget formats (lakhs, crores, "5l" = 5 lakhs)
 - Local regulations and licenses
-- Festival seasons and regional preferences
-- Competition from both organized and unorganized sectors`;
+- Festival seasons and regional preferences`;
 
   const userPrompt = `Analyze this business idea:
 
 Business Idea: ${businessIdea}
-Location: ${location || 'Not specified (assume major Indian city)'}
-Budget: ${budget || 'Not specified'}
+Location: ${location}
+Budget: ${budget}
 
-Provide a thorough analysis with specific insights for the location mentioned. Be realistic and data-driven in your assessment.`;
+Provide a thorough analysis with specific insights for the location mentioned.`;
 
-  console.log('Calling AI for full analysis...');
-  
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -142,26 +193,22 @@ Provide a thorough analysis with specific insights for the location mentioned. B
 
   if (!response.ok) {
     if (response.status === 429) {
-      throw new Error('Rate limit exceeded. Please try again later.');
+      throw new Error('RATE_LIMITED');
     }
     if (response.status === 402) {
-      throw new Error('API credits exhausted. Please add credits.');
+      throw new Error('CREDITS_EXHAUSTED');
     }
-    const errorText = await response.text();
-    console.error('AI Gateway error:', errorText);
-    throw new Error(`AI Gateway error: ${response.status}`);
+    console.error('Analysis service error:', { status: response.status });
+    throw new Error('SERVICE_ERROR');
   }
 
   const aiResponse = await response.json();
   const content = aiResponse.choices?.[0]?.message?.content;
 
   if (!content) {
-    throw new Error('Empty response from AI');
+    throw new Error('EMPTY_RESPONSE');
   }
 
-  console.log('AI response received, parsing...');
-
-  // Extract JSON from potential markdown code blocks
   let jsonContent = content;
   const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
@@ -183,23 +230,65 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { businessIdea, location, budget }: AnalysisRequest = await req.json();
-
-    if (!businessIdea) {
+    // ============================================
+    // AUTHENTICATION CHECK
+    // ============================================
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({ error: 'Business idea is required' }),
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: authError } = await supabaseClient.auth.getUser(token);
+    
+    if (authError || !claimsData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.user.id;
+    console.log('Authenticated user:', userId.substring(0, 8) + '...');
+
+    // ============================================
+    // INPUT VALIDATION
+    // ============================================
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Analyzing with AI: ${businessIdea} in ${location} with budget ${budget}`);
+    const validation = validateInput(body);
+    if (!validation.valid || !validation.data) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Get complete analysis from AI
+    const { businessIdea, location, budget } = validation.data;
+    console.log('Processing analysis request for user:', userId.substring(0, 8) + '...');
+
+    // ============================================
+    // AI ANALYSIS
+    // ============================================
     const aiAnalysis = await analyzeWithAI(businessIdea, location, budget);
 
-    console.log(`AI verdict: ${aiAnalysis.verdict}, score: ${aiAnalysis.score}`);
-
-    // Build the final response structure matching BusinessAnalysis interface
     const analysis = {
       verdict: aiAnalysis.verdict?.toUpperCase() || 'CAUTION',
       score: aiAnalysis.score || 50,
@@ -239,10 +328,23 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Analysis error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
+    console.error('Request failed:', errorMessage);
+
+    // Map internal errors to user-friendly messages
+    const errorMap: Record<string, { status: number; message: string }> = {
+      'RATE_LIMITED': { status: 429, message: 'Service is busy. Please try again in a moment.' },
+      'CREDITS_EXHAUSTED': { status: 503, message: 'Service temporarily unavailable.' },
+      'SERVICE_CONFIG_ERROR': { status: 503, message: 'Service configuration error.' },
+      'SERVICE_ERROR': { status: 503, message: 'Analysis service unavailable. Please try again.' },
+      'EMPTY_RESPONSE': { status: 500, message: 'Analysis incomplete. Please try again.' },
+    };
+
+    const errorResponse = errorMap[errorMessage] || { status: 500, message: 'Analysis failed. Please try again.' };
+
     return new Response(
-      JSON.stringify({ error: 'Analysis failed. Please try again.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: errorResponse.message }),
+      { status: errorResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
