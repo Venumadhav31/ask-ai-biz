@@ -1,4 +1,4 @@
-import { Brain, FlaskConical, Menu, X } from 'lucide-react';
+import { Brain, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -7,7 +7,6 @@ import { UserMenu } from './UserMenu';
 interface HeaderProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
-  onOpenTestSuite: () => void;
 }
 
 const tabs = [
@@ -19,7 +18,7 @@ const tabs = [
   { id: 'profitloss', label: 'Profit & Loss' },
 ];
 
-export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps) {
+export function Header({ activeTab, onTabChange }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleTabClick = (tabId: string) => {
@@ -59,15 +58,6 @@ export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps)
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenTestSuite}
-            className="gap-2 border-primary/30 hover:bg-primary/10 hover:border-primary/50"
-          >
-            <FlaskConical className="w-4 h-4" />
-            Test Suite
-          </Button>
           <UserMenu />
         </div>
 
@@ -102,20 +92,6 @@ export function Header({ activeTab, onTabChange, onOpenTestSuite }: HeaderProps)
                 {tab.label}
               </button>
             ))}
-            <div className="pt-2 border-t border-border/50">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  onOpenTestSuite();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full gap-2 border-primary/30"
-              >
-                <FlaskConical className="w-4 h-4" />
-                Test Suite
-              </Button>
-            </div>
           </nav>
         </div>
       )}
