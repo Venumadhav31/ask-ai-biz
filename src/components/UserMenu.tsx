@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
@@ -52,7 +53,18 @@ export function UserMenu() {
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={signOut} className="text-destructive">
+        <DropdownMenuItem 
+          onClick={async () => {
+            try {
+              await signOut();
+              toast.success('Signed out successfully');
+              navigate('/auth');
+            } catch (error) {
+              toast.error('Failed to sign out');
+            }
+          }} 
+          className="text-destructive"
+        >
           <LogOut className="w-4 h-4 mr-2" />
           Sign Out
         </DropdownMenuItem>
