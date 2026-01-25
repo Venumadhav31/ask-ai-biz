@@ -139,55 +139,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card mt-6">
-          <CardHeader>
-            <CardTitle>Methodologies & Frameworks Used</CardTitle>
-            <CardDescription>
-              Technologies powering BizFeasibility AI
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="p-4 rounded-lg bg-secondary/30 border border-border/50">
-                <h4 className="font-medium mb-2">Frontend</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• React 18 + TypeScript</li>
-                  <li>• Vite (Build Tool)</li>
-                  <li>• Tailwind CSS + shadcn/ui</li>
-                  <li>• Recharts (Visualization)</li>
-                  <li>• React Router DOM</li>
-                </ul>
-              </div>
-              <div className="p-4 rounded-lg bg-secondary/30 border border-border/50">
-                <h4 className="font-medium mb-2">Backend</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Lovable Cloud (Supabase)</li>
-                  <li>• Edge Functions (Deno)</li>
-                  <li>• PostgreSQL Database</li>
-                  <li>• Row Level Security (RLS)</li>
-                </ul>
-              </div>
-              <div className="p-4 rounded-lg bg-secondary/30 border border-border/50">
-                <h4 className="font-medium mb-2">AI Integration</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Lovable AI Gateway</li>
-                  <li>• Google Gemini 3 Flash</li>
-                  <li>• Ollama (Optional)</li>
-                  <li>• Structured JSON Output</li>
-                </ul>
-              </div>
-              <div className="p-4 rounded-lg bg-secondary/30 border border-border/50">
-                <h4 className="font-medium mb-2">Analysis Framework</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Market Sizing (TAM/SAM/SOM)</li>
-                  <li>• Financial Projections</li>
-                  <li>• Competition Analysis</li>
-                  <li>• Risk Assessment Matrix</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </main>
     </div>
   );

@@ -1,4 +1,4 @@
-import { User, LogOut, Database, Settings } from 'lucide-react';
+import { User, LogOut, History, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -44,8 +44,8 @@ export function UserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem onClick={() => navigate('/database')}>
-          <Database className="w-4 h-4 mr-2" />
-          View Database
+          <History className="w-4 h-4 mr-2" />
+          History
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate('/settings')}>
           <Settings className="w-4 h-4 mr-2" />
