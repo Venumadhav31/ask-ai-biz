@@ -3,10 +3,17 @@ import { LayoutDashboard, TrendingUp, Users, AlertTriangle, Target, Lightbulb, Q
 import { BusinessAnalysis } from '@/types/analysis';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { VerdictCard } from './VerdictCard';
-import { entrepreneurQuotes } from '@/data/testScenarios';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+const entrepreneurQuotes = [
+  { quote: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+  { quote: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { quote: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
+  { quote: "Your time is limited, don't waste it living someone else's life.", author: "Steve Jobs" },
+  { quote: "The biggest risk is not taking any risk.", author: "Mark Zuckerberg" },
+];
 import {
   AreaChart,
   Area,
