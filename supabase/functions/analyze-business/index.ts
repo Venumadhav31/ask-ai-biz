@@ -48,257 +48,12 @@ function validateInput(body: unknown): ValidationResult {
 }
 
 // ============================================
-// DETERMINISTIC DECISION ENGINE
+// HELPER: Call AI Gateway
 // ============================================
 
-interface ScoringFactors {
-  budgetFit: number;        // 0-100
-  locationViability: number; // 0-100
-  businessComplexity: number;// 0-100
-  marketPotential: number;   // 0-100
-  scalability: number;       // 0-100
-  riskLevel: number;         // 0-100 (higher = less risky)
-}
-
-interface DecisionResult {
-  score: number;
-  verdict: 'GO' | 'CAUTION' | 'AVOID';
-  scoringFactors: ScoringFactors;
-  breakEvenMonths: number;
-  roi: number;
-  financialProjections: Array<{ year: number; revenue: number; expenses: number; profit: number }>;
-  directCompetitors: number;
-  indirectCompetitors: number;
-  riskSeverities: Array<'low' | 'medium' | 'high'>;
-}
-
-// Parse budget to a numeric value in INR
-function parseBudget(budget: string): number {
-  if (!budget || budget === 'Not specified') return 500000;
-  const clean = budget.replace(/[₹$,\s]/g, '').toLowerCase();
-  let multiplier = 1;
-  if (clean.includes('lakh') || clean.includes('lac')) multiplier = 100000;
-  else if (clean.includes('crore') || clean.includes('cr')) multiplier = 10000000;
-  else if (clean.endsWith('l')) multiplier = 100000;
-  else if (clean.includes('k')) multiplier = 1000;
-  const numMatch = clean.match(/[\d.]+/);
-  return numMatch ? parseFloat(numMatch[0]) * multiplier : 500000;
-}
-
-// Classify city tier
-function getCityTier(location: string): number {
-  const loc = location.toLowerCase();
-  const tier1 = ['mumbai', 'delhi', 'bangalore', 'bengaluru', 'hyderabad', 'chennai', 'kolkata', 'pune', 'ahmedabad', 'gurgaon', 'gurugram', 'noida'];
-  const tier2 = ['jaipur', 'lucknow', 'chandigarh', 'indore', 'bhopal', 'nagpur', 'kochi', 'coimbatore', 'vadodara', 'surat', 'visakhapatnam', 'thiruvananthapuram', 'mysore', 'mangalore', 'nashik', 'rajkot', 'madurai'];
-  if (tier1.some(c => loc.includes(c))) return 1;
-  if (tier2.some(c => loc.includes(c))) return 2;
-  return 3;
-}
-
-// Classify business type and estimate typical setup costs
-function classifyBusiness(idea: string): { type: string; minSetupCost: number; avgMargin: number; complexityScore: number; scalabilityScore: number; marketDemandScore: number } {
-  const i = idea.toLowerCase();
-
-  // Food & Beverage
-  if (i.includes('restaurant') || i.includes('cafe') || i.includes('coffee'))
-    return { type: 'restaurant', minSetupCost: 1000000, avgMargin: 0.25, complexityScore: 70, scalabilityScore: 50, marketDemandScore: 75 };
-  if (i.includes('cloud kitchen') || i.includes('ghost kitchen'))
-    return { type: 'cloud_kitchen', minSetupCost: 500000, avgMargin: 0.30, complexityScore: 55, scalabilityScore: 70, marketDemandScore: 80 };
-  if (i.includes('food truck') || i.includes('street food') || i.includes('food stall'))
-    return { type: 'food_stall', minSetupCost: 200000, avgMargin: 0.35, complexityScore: 40, scalabilityScore: 40, marketDemandScore: 70 };
-  if (i.includes('pan shop') || i.includes('paan') || i.includes('betel'))
-    return { type: 'pan_shop', minSetupCost: 100000, avgMargin: 0.40, complexityScore: 25, scalabilityScore: 30, marketDemandScore: 65 };
-  if (i.includes('bakery') || i.includes('cake'))
-    return { type: 'bakery', minSetupCost: 500000, avgMargin: 0.35, complexityScore: 50, scalabilityScore: 55, marketDemandScore: 70 };
-  if (i.includes('tea') || i.includes('chai'))
-    return { type: 'tea_shop', minSetupCost: 150000, avgMargin: 0.45, complexityScore: 20, scalabilityScore: 60, marketDemandScore: 80 };
-  if (i.includes('juice') || i.includes('smoothie'))
-    return { type: 'juice_shop', minSetupCost: 200000, avgMargin: 0.40, complexityScore: 30, scalabilityScore: 45, marketDemandScore: 65 };
-
-  // Retail
-  if (i.includes('grocery') || i.includes('kirana') || i.includes('general store'))
-    return { type: 'grocery', minSetupCost: 300000, avgMargin: 0.15, complexityScore: 35, scalabilityScore: 45, marketDemandScore: 85 };
-  if (i.includes('pharmacy') || i.includes('medical shop') || i.includes('chemist'))
-    return { type: 'pharmacy', minSetupCost: 500000, avgMargin: 0.20, complexityScore: 60, scalabilityScore: 55, marketDemandScore: 90 };
-  if (i.includes('clothing') || i.includes('fashion') || i.includes('boutique') || i.includes('garment'))
-    return { type: 'clothing', minSetupCost: 500000, avgMargin: 0.35, complexityScore: 50, scalabilityScore: 55, marketDemandScore: 70 };
-  if (i.includes('mobile') || i.includes('phone') || i.includes('electronics'))
-    return { type: 'electronics', minSetupCost: 500000, avgMargin: 0.15, complexityScore: 45, scalabilityScore: 50, marketDemandScore: 75 };
-
-  // Services
-  if (i.includes('salon') || i.includes('beauty') || i.includes('parlour') || i.includes('parlor'))
-    return { type: 'salon', minSetupCost: 300000, avgMargin: 0.40, complexityScore: 45, scalabilityScore: 50, marketDemandScore: 75 };
-  if (i.includes('gym') || i.includes('fitness'))
-    return { type: 'gym', minSetupCost: 1500000, avgMargin: 0.30, complexityScore: 60, scalabilityScore: 55, marketDemandScore: 70 };
-  if (i.includes('tuition') || i.includes('coaching') || i.includes('education') || i.includes('academy'))
-    return { type: 'education', minSetupCost: 200000, avgMargin: 0.50, complexityScore: 40, scalabilityScore: 65, marketDemandScore: 80 };
-  if (i.includes('laundry') || i.includes('dry clean'))
-    return { type: 'laundry', minSetupCost: 300000, avgMargin: 0.35, complexityScore: 35, scalabilityScore: 60, marketDemandScore: 65 };
-
-  // Tech
-  if (i.includes('app') || i.includes('software') || i.includes('saas') || i.includes('tech startup'))
-    return { type: 'tech', minSetupCost: 300000, avgMargin: 0.60, complexityScore: 80, scalabilityScore: 90, marketDemandScore: 75 };
-  if (i.includes('ecommerce') || i.includes('e-commerce') || i.includes('online store'))
-    return { type: 'ecommerce', minSetupCost: 200000, avgMargin: 0.30, complexityScore: 55, scalabilityScore: 80, marketDemandScore: 75 };
-  if (i.includes('freelanc') || i.includes('consulting') || i.includes('agency'))
-    return { type: 'consulting', minSetupCost: 50000, avgMargin: 0.55, complexityScore: 50, scalabilityScore: 60, marketDemandScore: 70 };
-
-  // Default
-  return { type: 'general', minSetupCost: 300000, avgMargin: 0.25, complexityScore: 50, scalabilityScore: 50, marketDemandScore: 60 };
-}
-
-// The core deterministic decision engine
-function makeDecision(businessIdea: string, location: string, budget: string): DecisionResult {
-  const budgetAmount = parseBudget(budget);
-  const cityTier = getCityTier(location);
-  const biz = classifyBusiness(businessIdea);
-
-  // --- Tier multiplier for costs ---
-  const tierCostMultiplier = cityTier === 1 ? 1.5 : cityTier === 2 ? 1.0 : 0.7;
-  const adjustedMinCost = biz.minSetupCost * tierCostMultiplier;
-
-  // --- 1. Budget Fit (0-100) ---
-  const budgetRatio = budgetAmount / adjustedMinCost;
-  let budgetFit: number;
-  if (budgetRatio >= 2.0) budgetFit = 95;
-  else if (budgetRatio >= 1.5) budgetFit = 85;
-  else if (budgetRatio >= 1.0) budgetFit = 70;
-  else if (budgetRatio >= 0.7) budgetFit = 50;
-  else if (budgetRatio >= 0.5) budgetFit = 35;
-  else if (budgetRatio >= 0.3) budgetFit = 20;
-  else budgetFit = 10;
-
-  // --- 2. Location Viability (0-100) ---
-  // Tier 1: high footfall but high cost; Tier 3: low cost but low demand
-  let locationViability: number;
-  if (cityTier === 1) locationViability = budgetRatio >= 1.0 ? 80 : 55;
-  else if (cityTier === 2) locationViability = budgetRatio >= 0.8 ? 75 : 60;
-  else locationViability = budgetRatio >= 0.6 ? 70 : 65;
-
-  // --- 3. Business Complexity (inverted: higher = simpler = better) ---
-  const businessComplexity = 100 - biz.complexityScore;
-
-  // --- 4. Market Potential ---
-  const marketPotential = biz.marketDemandScore;
-
-  // --- 5. Scalability ---
-  const scalability = biz.scalabilityScore;
-
-  // --- 6. Risk Level (higher = less risky = better) ---
-  let riskLevel: number;
-  if (budgetRatio >= 1.5 && biz.complexityScore <= 40) riskLevel = 85;
-  else if (budgetRatio >= 1.0 && biz.complexityScore <= 60) riskLevel = 65;
-  else if (budgetRatio >= 0.7) riskLevel = 45;
-  else if (budgetRatio >= 0.4) riskLevel = 30;
-  else riskLevel = 15;
-
-  const scoringFactors: ScoringFactors = { budgetFit, locationViability, businessComplexity, marketPotential, scalability, riskLevel };
-
-  // --- Weighted Score ---
-  const weights = { budgetFit: 0.25, locationViability: 0.15, businessComplexity: 0.10, marketPotential: 0.20, scalability: 0.10, riskLevel: 0.20 };
-  const score = Math.round(
-    budgetFit * weights.budgetFit +
-    locationViability * weights.locationViability +
-    businessComplexity * weights.businessComplexity +
-    marketPotential * weights.marketPotential +
-    scalability * weights.scalability +
-    riskLevel * weights.riskLevel
-  );
-
-  // --- Verdict ---
-  let verdict: 'GO' | 'CAUTION' | 'AVOID';
-  if (score >= 68 && budgetFit >= 50 && riskLevel >= 40) verdict = 'GO';
-  else if (score < 40 || budgetFit < 20 || riskLevel < 20) verdict = 'AVOID';
-  else verdict = 'CAUTION';
-
-  // --- Financial Projections ---
-  const monthlyRevenue = budgetAmount * biz.avgMargin * (cityTier === 1 ? 1.3 : cityTier === 2 ? 1.0 : 0.75);
-  const monthlyExpenses = adjustedMinCost * 0.08; // ~8% of setup as monthly operating cost
-  const breakEvenMonths = monthlyRevenue > monthlyExpenses
-    ? Math.ceil(adjustedMinCost / (monthlyRevenue - monthlyExpenses))
-    : 36; // cap at 3 years if unprofitable
-  const roi = monthlyRevenue > monthlyExpenses
-    ? Math.round(((monthlyRevenue - monthlyExpenses) * 12 / budgetAmount) * 100)
-    : -Math.round((monthlyExpenses - monthlyRevenue) * 12 / budgetAmount * 100);
-
-  const currentYear = new Date().getFullYear();
-  const growthRates = [1.0, 1.20, 1.40, 1.55, 1.70];
-  const financialProjections = growthRates.map((g, i) => {
-    const rev = Math.round(monthlyRevenue * 12 * g);
-    const exp = Math.round(monthlyExpenses * 12 * (1 + i * 0.05));
-    return { year: currentYear + i, revenue: rev, expenses: exp, profit: rev - exp };
-  });
-
-  // --- Competition estimate based on type & tier ---
-  const baseCompetitors = cityTier === 1 ? 25 : cityTier === 2 ? 15 : 8;
-  const directCompetitors = Math.round(baseCompetitors * (biz.marketDemandScore / 100));
-  const indirectCompetitors = Math.round(directCompetitors * 1.5);
-
-  // --- Risk severities ---
-  const riskSeverities: Array<'low' | 'medium' | 'high'> = [];
-  if (budgetFit < 30) riskSeverities.push('high');
-  if (budgetFit < 50) riskSeverities.push('medium');
-  if (riskLevel < 30) riskSeverities.push('high');
-  if (locationViability < 50) riskSeverities.push('medium');
-  if (riskSeverities.length === 0) riskSeverities.push('low');
-
-  return { score, verdict, scoringFactors, breakEvenMonths, roi, financialProjections, directCompetitors, indirectCompetitors, riskSeverities };
-}
-
-// ============================================
-// AI EXPLANATION ENGINE (explanations only)
-// ============================================
-
-async function getAIExplanations(businessIdea: string, location: string, budget: string, decision: DecisionResult) {
+async function callAI(systemPrompt: string, userPrompt: string, maxTokens = 3000, temperature = 0.4): Promise<string> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) throw new Error('SERVICE_CONFIG_ERROR');
-
-  const systemPrompt = `You are an expert business analyst for Indian markets. You will be given a business idea, location, budget, and a PRE-COMPUTED decision with scores. Your job is ONLY to provide rich, location-specific EXPLANATIONS and qualitative insights. Do NOT change the scores, verdict, or financial numbers — they are final.
-
-Return valid JSON with this EXACT structure:
-{
-  "summary": "<2-3 sentence executive summary referencing the specific location and budget>",
-  "marketExplanation": "<3-4 sentences about the local market conditions, footfall, demographics in this specific neighborhood>",
-  "competitionExplanation": "<3-4 sentences about competitors in this exact area, what they do differently>",
-  "financialExplanation": "<3-4 sentences explaining the financial outlook given the budget and location costs>",
-  "competitiveAdvantage": "<1-2 sentences on how to differentiate>",
-  "threats": ["<specific threat 1>", "<specific threat 2>", "<specific threat 3>"],
-  "opportunities": ["<specific opportunity 1>", "<specific opportunity 2>", "<specific opportunity 3>"],
-  "risks": [
-    {"risk": "<specific risk>", "severity": "${decision.riskSeverities[0] || 'medium'}", "mitigation": "<actionable mitigation>"},
-    {"risk": "<specific risk>", "severity": "medium", "mitigation": "<actionable mitigation>"},
-    {"risk": "<specific risk>", "severity": "low", "mitigation": "<actionable mitigation>"}
-  ],
-  "recommendations": ["<actionable rec 1>", "<actionable rec 2>", "<actionable rec 3>", "<actionable rec 4>"],
-  "roadmapPhases": [
-    {"phase": "Phase 1: <name>", "duration": "<timeframe>", "tasks": ["<task>", "<task>"], "milestones": ["<milestone>"]},
-    {"phase": "Phase 2: <name>", "duration": "<timeframe>", "tasks": ["<task>", "<task>"], "milestones": ["<milestone>"]},
-    {"phase": "Phase 3: <name>", "duration": "<timeframe>", "tasks": ["<task>", "<task>"], "milestones": ["<milestone>"]}
-  ],
-  "roadmapExplanation": "<why this roadmap fits>",
-  "expertInsights": "<2-3 paragraphs of expert analysis with neighborhood-specific insights>",
-  "marketSize": "<estimated local market size>",
-  "marketGrowth": "<growth trend>"
-}
-
-Be SPECIFIC to the neighborhood/city. Mention local landmarks, nearby competition, local rent norms, and regional regulations.`;
-
-  const userPrompt = `Business Idea: ${businessIdea}
-Location: ${location}
-Budget: ${budget}
-
-PRE-COMPUTED DECISION (DO NOT CHANGE THESE):
-- Score: ${decision.score}/100
-- Verdict: ${decision.verdict}
-- Budget Fit: ${decision.scoringFactors.budgetFit}/100
-- Location Viability: ${decision.scoringFactors.locationViability}/100
-- Market Potential: ${decision.scoringFactors.marketPotential}/100
-- Risk Level: ${decision.scoringFactors.riskLevel}/100
-- Break-even: ${decision.breakEvenMonths} months
-- ROI: ${decision.roi}%
-- Estimated competitors nearby: ${decision.directCompetitors} direct, ${decision.indirectCompetitors} indirect
-
-Provide location-specific EXPLANATIONS and qualitative insights for this analysis. Reference the pre-computed numbers in your explanations.`;
 
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -307,10 +62,10 @@ Provide location-specific EXPLANATIONS and qualitative insights for this analysi
       model: 'google/gemini-3-flash-preview',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'user', content: userPrompt },
       ],
-      temperature: 0.8,
-      max_tokens: 3500,
+      temperature,
+      max_tokens: maxTokens,
     }),
   });
 
@@ -323,12 +78,191 @@ Provide location-specific EXPLANATIONS and qualitative insights for this analysi
   const aiResponse = await response.json();
   const content = aiResponse.choices?.[0]?.message?.content;
   if (!content) throw new Error('EMPTY_RESPONSE');
+  return content;
+}
 
-  let jsonContent = content;
-  const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+function parseJSON(raw: string): unknown {
+  let jsonContent = raw;
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) jsonContent = jsonMatch[1].trim();
-
   return JSON.parse(jsonContent);
+}
+
+// ============================================
+// PASS 1: Dynamic Factor Discovery + Market Intel
+// ============================================
+
+interface MarketDataPoint {
+  metric: string;
+  minValue: number;
+  maxValue: number;
+  estimatedValue: number;
+  unit: string;
+  source: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+interface DynamicFactor {
+  name: string;
+  weight: number; // 0.0 - 1.0, all weights must sum to 1.0
+  score: number;  // 0 - 100
+  reasoning: string;
+  isLocationSpecific: boolean;
+}
+
+interface Pass1Result {
+  factors: DynamicFactor[];
+  marketData: MarketDataPoint[];
+  estimatedSetupCostMin: number;
+  estimatedSetupCostMax: number;
+  estimatedMonthlyRevenueMin: number;
+  estimatedMonthlyRevenueMax: number;
+  estimatedMonthlyExpensesMin: number;
+  estimatedMonthlyExpensesMax: number;
+  avgProfitMargin: number;
+  directCompetitors: number;
+  indirectCompetitors: number;
+  marketSize: string;
+  marketGrowth: string;
+}
+
+async function pass1_discoverFactorsAndData(businessIdea: string, location: string, budget: string): Promise<Pass1Result> {
+  const systemPrompt = `You are an expert Indian market research analyst with deep knowledge of real estate costs, competitor landscapes, regulatory environments, and consumer behavior across all Indian cities, towns, and villages.
+
+Your task: Given a business idea, location, and budget, you must:
+
+1. IDENTIFY the most relevant scoring factors for THIS specific business+location combo. Do NOT use a fixed set — adapt based on what actually matters. Examples:
+   - A laundry in a drought-prone village → "Water Availability" is critical
+   - A tech startup in Bangalore → "Talent Pool Access" matters
+   - A restaurant near a college → "Student Footfall" is key
+   - A pharmacy anywhere → "Regulatory Compliance" is important
+   
+   Always include at least 4 and at most 8 factors. Each must have a weight (all weights sum to 1.0) and a score (0-100).
+
+2. ESTIMATE real market data with min/max ranges:
+   - Setup costs (rent deposit, equipment, licenses, renovation) for THIS specific location
+   - Monthly revenue potential based on local demand
+   - Monthly operating expenses (rent, staff, utilities, supplies)
+   - Competitor count in the area
+   - Local market size and growth
+
+Use your knowledge of Indian geography, economics, and demographics. Be SPECIFIC — mention actual neighborhoods, local costs, nearby landmarks if relevant.
+
+Return ONLY valid JSON:
+{
+  "factors": [
+    {"name": "<factor name>", "weight": <0.0-1.0>, "score": <0-100>, "reasoning": "<1-2 sentences>", "isLocationSpecific": <true/false>}
+  ],
+  "marketData": [
+    {"metric": "<name>", "minValue": <number>, "maxValue": <number>, "estimatedValue": <number>, "unit": "<INR/count/percent/sqft>", "source": "<basis of estimate>", "confidence": "<high/medium/low>"}
+  ],
+  "estimatedSetupCostMin": <number in INR>,
+  "estimatedSetupCostMax": <number in INR>,
+  "estimatedMonthlyRevenueMin": <number in INR>,
+  "estimatedMonthlyRevenueMax": <number in INR>,
+  "estimatedMonthlyExpensesMin": <number in INR>,
+  "estimatedMonthlyExpensesMax": <number in INR>,
+  "avgProfitMargin": <0.0-1.0>,
+  "directCompetitors": <number>,
+  "indirectCompetitors": <number>,
+  "marketSize": "<string>",
+  "marketGrowth": "<string>"
+}
+
+CRITICAL: weights MUST sum to exactly 1.0. Scores must reflect realistic assessment, not optimism.`;
+
+  const userPrompt = `Business Idea: ${businessIdea}
+Location: ${location}
+Budget: ${budget}
+
+Analyze this specific combination and return the dynamic factors and market data.`;
+
+  const raw = await callAI(systemPrompt, userPrompt, 3000, 0.3);
+  return parseJSON(raw) as Pass1Result;
+}
+
+// ============================================
+// PASS 2: Deterministic Scoring Engine
+// ============================================
+
+function parseBudget(budget: string): number {
+  if (!budget || budget === 'Not specified') return 500000;
+  const clean = budget.replace(/[₹$,\s]/g, '').toLowerCase();
+  let multiplier = 1;
+  if (clean.includes('lakh') || clean.includes('lac')) multiplier = 100000;
+  else if (clean.includes('crore') || clean.includes('cr')) multiplier = 10000000;
+  else if (clean.endsWith('l')) multiplier = 100000;
+  else if (clean.includes('k')) multiplier = 1000;
+  const numMatch = clean.match(/[\d.]+/);
+  return numMatch ? parseFloat(numMatch[0]) * multiplier : 500000;
+}
+
+interface ScoringResult {
+  score: number;
+  verdict: 'GO' | 'CAUTION' | 'AVOID';
+  factors: DynamicFactor[];
+  breakEvenMonths: number;
+  roi: number;
+  financialProjections: Array<{ year: number; revenue: number; expenses: number; profit: number }>;
+  budgetFitPercent: number;
+}
+
+function pass2_score(pass1: Pass1Result, budget: string): ScoringResult {
+  const budgetAmount = parseBudget(budget);
+
+  // --- Weighted score from dynamic factors ---
+  let totalWeight = 0;
+  let weightedSum = 0;
+  for (const f of pass1.factors) {
+    weightedSum += f.score * f.weight;
+    totalWeight += f.weight;
+  }
+  // Normalize in case weights don't perfectly sum to 1
+  const rawScore = totalWeight > 0 ? weightedSum / totalWeight : 50;
+
+  // --- Budget Fit as a modifier ---
+  const avgSetupCost = (pass1.estimatedSetupCostMin + pass1.estimatedSetupCostMax) / 2;
+  const budgetRatio = avgSetupCost > 0 ? budgetAmount / avgSetupCost : 1;
+  let budgetModifier: number;
+  if (budgetRatio >= 2.0) budgetModifier = 1.15;
+  else if (budgetRatio >= 1.5) budgetModifier = 1.10;
+  else if (budgetRatio >= 1.0) budgetModifier = 1.0;
+  else if (budgetRatio >= 0.7) budgetModifier = 0.85;
+  else if (budgetRatio >= 0.5) budgetModifier = 0.70;
+  else if (budgetRatio >= 0.3) budgetModifier = 0.55;
+  else budgetModifier = 0.40;
+
+  const budgetFitPercent = Math.min(100, Math.round(budgetRatio * 100));
+  const score = Math.round(Math.min(100, Math.max(0, rawScore * budgetModifier)));
+
+  // --- Verdict ---
+  let verdict: 'GO' | 'CAUTION' | 'AVOID';
+  if (score >= 65 && budgetFitPercent >= 50) verdict = 'GO';
+  else if (score < 35 || budgetFitPercent < 25) verdict = 'AVOID';
+  else verdict = 'CAUTION';
+
+  // --- Financial Projections ---
+  const avgMonthlyRevenue = (pass1.estimatedMonthlyRevenueMin + pass1.estimatedMonthlyRevenueMax) / 2;
+  const avgMonthlyExpenses = (pass1.estimatedMonthlyExpensesMin + pass1.estimatedMonthlyExpensesMax) / 2;
+  const monthlyProfit = avgMonthlyRevenue - avgMonthlyExpenses;
+
+  const breakEvenMonths = monthlyProfit > 0
+    ? Math.ceil(avgSetupCost / monthlyProfit)
+    : 36;
+
+  const roi = monthlyProfit > 0
+    ? Math.round((monthlyProfit * 12 / budgetAmount) * 100)
+    : -Math.round((Math.abs(monthlyProfit) * 12 / budgetAmount) * 100);
+
+  const currentYear = new Date().getFullYear();
+  const growthRates = [1.0, 1.15, 1.30, 1.45, 1.60];
+  const financialProjections = growthRates.map((g, i) => {
+    const rev = Math.round(avgMonthlyRevenue * 12 * g);
+    const exp = Math.round(avgMonthlyExpenses * 12 * (1 + i * 0.05));
+    return { year: currentYear + i, revenue: rev, expenses: exp, profit: rev - exp };
+  });
+
+  return { score, verdict, factors: pass1.factors, breakEvenMonths, roi, financialProjections, budgetFitPercent };
 }
 
 // ============================================
@@ -347,6 +281,74 @@ function generateYearlyWithMonths(yearlyData: Array<{ year: number; revenue: num
       profit: Math.round(y.revenue * seasonalWeights[i] - y.expenses / 12),
     })),
   }));
+}
+
+// ============================================
+// PASS 3: AI Explanations
+// ============================================
+
+async function pass3_explain(businessIdea: string, location: string, budget: string, scoring: ScoringResult, pass1: Pass1Result) {
+  const factorsSummary = scoring.factors.map(f =>
+    `- ${f.name}: ${f.score}/100 (weight: ${(f.weight * 100).toFixed(0)}%) — ${f.reasoning}`
+  ).join('\n');
+
+  const systemPrompt = `You are an expert business analyst for Indian markets. You will be given a business idea, location, budget, and a PRE-COMPUTED decision with dynamic scoring factors and market data. Your job is ONLY to provide rich, location-specific EXPLANATIONS and qualitative insights. Do NOT change the scores, verdict, or financial numbers — they are final.
+
+Return valid JSON with this EXACT structure:
+{
+  "summary": "<2-3 sentence executive summary referencing the specific location and budget>",
+  "marketExplanation": "<3-4 sentences about the local market conditions, footfall, demographics in this specific area>",
+  "competitionExplanation": "<3-4 sentences about competitors in this exact area>",
+  "financialExplanation": "<3-4 sentences explaining the financial outlook given the budget and location costs>",
+  "competitiveAdvantage": "<1-2 sentences on how to differentiate>",
+  "threats": ["<specific threat 1>", "<specific threat 2>", "<specific threat 3>"],
+  "opportunities": ["<specific opportunity 1>", "<specific opportunity 2>", "<specific opportunity 3>"],
+  "risks": [
+    {"risk": "<specific risk>", "severity": "<low/medium/high>", "mitigation": "<actionable mitigation>"},
+    {"risk": "<specific risk>", "severity": "<low/medium/high>", "mitigation": "<actionable mitigation>"},
+    {"risk": "<specific risk>", "severity": "<low/medium/high>", "mitigation": "<actionable mitigation>"}
+  ],
+  "recommendations": ["<actionable rec 1>", "<actionable rec 2>", "<actionable rec 3>", "<actionable rec 4>"],
+  "roadmapPhases": [
+    {"phase": "Phase 1: <name>", "duration": "<timeframe>", "tasks": ["<task>", "<task>"], "milestones": ["<milestone>"]},
+    {"phase": "Phase 2: <name>", "duration": "<timeframe>", "tasks": ["<task>", "<task>"], "milestones": ["<milestone>"]},
+    {"phase": "Phase 3: <name>", "duration": "<timeframe>", "tasks": ["<task>", "<task>"], "milestones": ["<milestone>"]}
+  ],
+  "roadmapExplanation": "<why this roadmap fits>",
+  "expertInsights": "<2-3 paragraphs of expert analysis with neighborhood-specific insights>"
+}
+
+Be SPECIFIC to the neighborhood/city. Mention local landmarks, nearby competition, local rent norms, and regional regulations.`;
+
+  const userPrompt = `Business Idea: ${businessIdea}
+Location: ${location}
+Budget: ${budget}
+
+PRE-COMPUTED DECISION (DO NOT CHANGE):
+- Score: ${scoring.score}/100
+- Verdict: ${scoring.verdict}
+- Budget Fit: ${scoring.budgetFitPercent}%
+- Break-even: ${scoring.breakEvenMonths} months
+- ROI: ${scoring.roi}%
+- Direct Competitors: ${pass1.directCompetitors}
+- Indirect Competitors: ${pass1.indirectCompetitors}
+- Market Size: ${pass1.marketSize}
+- Market Growth: ${pass1.marketGrowth}
+
+DYNAMIC SCORING FACTORS:
+${factorsSummary}
+
+MARKET DATA:
+${pass1.marketData.map(d => `- ${d.metric}: ${d.estimatedValue} ${d.unit} (range: ${d.minValue}-${d.maxValue}, confidence: ${d.confidence})`).join('\n')}
+
+Setup Cost Range: ₹${pass1.estimatedSetupCostMin.toLocaleString()} - ₹${pass1.estimatedSetupCostMax.toLocaleString()}
+Monthly Revenue Range: ₹${pass1.estimatedMonthlyRevenueMin.toLocaleString()} - ₹${pass1.estimatedMonthlyRevenueMax.toLocaleString()}
+Monthly Expenses Range: ₹${pass1.estimatedMonthlyExpensesMin.toLocaleString()} - ₹${pass1.estimatedMonthlyExpensesMax.toLocaleString()}
+
+Provide location-specific EXPLANATIONS for this analysis.`;
+
+  const raw = await callAI(systemPrompt, userPrompt, 3500, 0.8);
+  return parseJSON(raw) as Record<string, unknown>;
 }
 
 // ============================================
@@ -384,51 +386,65 @@ Deno.serve(async (req) => {
     const { businessIdea, location, budget } = validation.data;
 
     // ============================================
-    // STEP 1: Deterministic Decision
+    // PASS 1: Discover dynamic factors + market data
     // ============================================
-    const decision = makeDecision(businessIdea, location, budget);
-    console.log(`Decision: score=${decision.score}, verdict=${decision.verdict}`);
+    console.log('Pass 1: Discovering factors and market data...');
+    const pass1 = await pass1_discoverFactorsAndData(businessIdea, location, budget);
+    console.log(`Pass 1 complete: ${pass1.factors.length} factors, ${pass1.marketData.length} data points`);
 
     // ============================================
-    // STEP 2: AI Explanations Only
+    // PASS 2: Deterministic scoring
     // ============================================
-    const aiExplanations = await getAIExplanations(businessIdea, location, budget, decision);
+    console.log('Pass 2: Scoring...');
+    const scoring = pass2_score(pass1, budget);
+    console.log(`Pass 2 complete: score=${scoring.score}, verdict=${scoring.verdict}`);
 
     // ============================================
-    // STEP 3: Assemble Final Response
+    // PASS 3: AI explanations
+    // ============================================
+    console.log('Pass 3: Generating explanations...');
+    const aiExplanations = await pass3_explain(businessIdea, location, budget, scoring, pass1);
+
+    // ============================================
+    // Assemble Final Response
     // ============================================
     const analysis = {
-      verdict: decision.verdict,
-      score: decision.score,
-      summary: aiExplanations.summary || `Analysis complete for ${businessIdea} in ${location}.`,
+      verdict: scoring.verdict,
+      score: scoring.score,
+      summary: (aiExplanations.summary as string) || `Analysis complete for ${businessIdea} in ${location}.`,
+      scoringFactors: Object.fromEntries(scoring.factors.map(f => [f.name.replace(/\s+/g, ''), f.score])),
+      dynamicFactors: scoring.factors,
+      marketData: pass1.marketData,
       marketAnalysis: {
-        size: aiExplanations.marketSize || 'Data pending',
-        growth: aiExplanations.marketGrowth || 'Data pending',
-        competition: `${decision.directCompetitors} direct, ${decision.indirectCompetitors} indirect`,
-        explanation: aiExplanations.marketExplanation || '',
+        size: pass1.marketSize || 'Data pending',
+        growth: pass1.marketGrowth || 'Data pending',
+        competition: `${pass1.directCompetitors} direct, ${pass1.indirectCompetitors} indirect`,
+        explanation: (aiExplanations.marketExplanation as string) || '',
       },
       financialProjection: {
-        yearlyData: generateYearlyWithMonths(decision.financialProjections),
-        breakEvenMonths: decision.breakEvenMonths,
-        roi: decision.roi,
-        explanation: aiExplanations.financialExplanation || '',
+        yearlyData: generateYearlyWithMonths(scoring.financialProjections),
+        breakEvenMonths: scoring.breakEvenMonths,
+        roi: scoring.roi,
+        explanation: (aiExplanations.financialExplanation as string) || '',
+        setupCostRange: { min: pass1.estimatedSetupCostMin, max: pass1.estimatedSetupCostMax },
+        monthlyRevenueRange: { min: pass1.estimatedMonthlyRevenueMin, max: pass1.estimatedMonthlyRevenueMax },
+        monthlyExpensesRange: { min: pass1.estimatedMonthlyExpensesMin, max: pass1.estimatedMonthlyExpensesMax },
       },
       competitionAnalysis: {
-        directCompetitors: decision.directCompetitors,
-        indirectCompetitors: decision.indirectCompetitors,
-        competitiveAdvantage: aiExplanations.competitiveAdvantage || '',
-        threats: aiExplanations.threats || [],
-        opportunities: aiExplanations.opportunities || [],
-        explanation: aiExplanations.competitionExplanation || '',
+        directCompetitors: pass1.directCompetitors,
+        indirectCompetitors: pass1.indirectCompetitors,
+        competitiveAdvantage: (aiExplanations.competitiveAdvantage as string) || '',
+        threats: (aiExplanations.threats as string[]) || [],
+        opportunities: (aiExplanations.opportunities as string[]) || [],
+        explanation: (aiExplanations.competitionExplanation as string) || '',
       },
       roadmap: {
-        phases: aiExplanations.roadmapPhases || [],
-        explanation: aiExplanations.roadmapExplanation || '',
+        phases: (aiExplanations.roadmapPhases as unknown[]) || [],
+        explanation: (aiExplanations.roadmapExplanation as string) || '',
       },
-      risks: aiExplanations.risks || [],
-      recommendations: aiExplanations.recommendations || [],
-      expertInsights: aiExplanations.expertInsights || '',
-      scoringFactors: decision.scoringFactors,
+      risks: (aiExplanations.risks as unknown[]) || [],
+      recommendations: (aiExplanations.recommendations as string[]) || [],
+      expertInsights: (aiExplanations.expertInsights as string) || '',
     };
 
     return new Response(JSON.stringify({ analysis }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
