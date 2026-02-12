@@ -97,12 +97,16 @@ async function analyzeWithAI(businessIdea: string, location: string, budget: str
 
   const systemPrompt = `You are an expert business analyst for Indian markets. Analyze the business idea and provide a comprehensive feasibility assessment.
 
+CRITICAL: Your analysis MUST be HIGHLY SPECIFIC to the exact location provided. Different locations should produce significantly different scores, financials, and insights. For example, a pan shop in Koramangala (Bangalore) should have very different rent, competition, footfall, and regulatory analysis compared to one in Connaught Place (Delhi) or a small town like Dharwad.
+
 Your analysis must be data-driven, specific to the location, and consider:
-- Local market conditions and consumer behavior
-- Regional competition landscape
-- Budget adequacy for the specific business type
-- Regulatory requirements in that region
-- Economic factors and growth trends
+- LOCAL rent rates, property costs, and deposit norms for that specific area/neighborhood
+- Local market conditions, footfall patterns, and consumer demographics unique to that area
+- Regional competition landscape — number of similar shops within 1-2 km radius
+- Budget adequacy considering LOCAL cost of living and business setup costs
+- Specific regulatory requirements, licenses, and municipal rules for that city/state
+- Economic factors, local purchasing power, and regional growth trends
+- Neighborhood-specific factors (commercial vs residential, nearby landmarks, transit access)
 
 IMPORTANT: Return your response as valid JSON matching this EXACT structure:
 {
@@ -166,13 +170,18 @@ Consider Indian-specific factors:
 - Local regulations and licenses
 - Festival seasons and regional preferences`;
 
-  const userPrompt = `Analyze this business idea:
+  const userPrompt = `Analyze this business idea with LOCATION-SPECIFIC data:
 
 Business Idea: ${businessIdea}
 Location: ${location}
 Budget: ${budget}
 
-Provide a thorough analysis with specific insights for the location mentioned.`;
+IMPORTANT: Base your financial projections, rent estimates, competition count, and all numbers on the SPECIFIC location "${location}". 
+- What are typical rent/deposit costs in this exact area?
+- How many similar businesses exist within 1-2 km?
+- What is the average footfall and consumer spending power here?
+- What local regulations or licenses apply in this city/state?
+Provide a thorough, location-differentiated analysis.`;
 
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -186,7 +195,7 @@ Provide a thorough analysis with specific insights for the location mentioned.`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.7,
+      temperature: 0.8,
       max_tokens: 4000,
     }),
   });
