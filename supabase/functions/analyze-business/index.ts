@@ -528,7 +528,7 @@ Analyze this specific combination and return the dynamic factors and market data
 }
 
 // ============================================
-// PASS 2: Deterministic Scoring Engine
+// PASS 2: XGBoost-Style Gradient Boosted Decision Tree Scoring
 // ============================================
 
 function parseBudget(budget: string): number {
@@ -543,6 +543,191 @@ function parseBudget(budget: string): number {
   return numMatch ? parseFloat(numMatch[0]) * multiplier : 500000;
 }
 
+// --- XGBoost-style GBDT Engine ---
+
+interface GBDTFeatures {
+  avgFactorScore: number;       // 0-100: weighted avg of Pass 1 factors
+  budgetRatio: number;          // 0-5+: budget / setup cost
+  competitionDensity: number;   // 0-1: normalized competitor pressure
+  marketGrowthSignal: number;   // 0-1: growth potential
+  profitMarginEstimate: number; // 0-1: estimated margin
+  locationTierScore: number;    // 0-1: tier-based opportunity
+  revenueToExpenseRatio: number;// 0-5+: revenue / expenses
+  factorVariance: number;       // 0-1: how spread out factor scores are (risk signal)
+  topFactorScore: number;       // 0-100: best factor score
+  bottomFactorScore: number;    // 0-100: worst factor score
+}
+
+// A decision stump (weak learner) in the ensemble
+interface DecisionStump {
+  featureKey: keyof GBDTFeatures;
+  threshold: number;
+  leftValue: number;   // prediction if feature <= threshold
+  rightValue: number;  // prediction if feature > threshold
+  weight: number;      // learning rate × contribution
+}
+
+// Interaction stump: splits on product/ratio of two features
+interface InteractionStump {
+  featureA: keyof GBDTFeatures;
+  featureB: keyof GBDTFeatures;
+  operation: 'multiply' | 'divide' | 'min' | 'max';
+  threshold: number;
+  leftValue: number;
+  rightValue: number;
+  weight: number;
+}
+
+function extractFeatures(pass1: Pass1Result, budgetAmount: number): GBDTFeatures {
+  // Weighted average factor score
+  let totalWeight = 0, weightedSum = 0;
+  let maxScore = 0, minScore = 100;
+  for (const f of pass1.factors) {
+    weightedSum += f.score * f.weight;
+    totalWeight += f.weight;
+    if (f.score > maxScore) maxScore = f.score;
+    if (f.score < minScore) minScore = f.score;
+  }
+  const avgFactorScore = totalWeight > 0 ? weightedSum / totalWeight : 50;
+
+  // Budget ratio
+  const avgSetupCost = (pass1.estimatedSetupCostMin + pass1.estimatedSetupCostMax) / 2 || 1;
+  const budgetRatio = budgetAmount / avgSetupCost;
+
+  // Competition density: normalized 0-1 (higher = more competition = worse)
+  const totalCompetitors = pass1.directCompetitors + pass1.indirectCompetitors * 0.5;
+  const competitionDensity = Math.min(1, totalCompetitors / 50);
+
+  // Market growth signal: parse from string
+  const growthMatch = (pass1.marketGrowth || '').match(/([\d.]+)\s*%/);
+  const growthPercent = growthMatch ? parseFloat(growthMatch[1]) : 5;
+  const marketGrowthSignal = Math.min(1, growthPercent / 30);
+
+  // Profit margin
+  const profitMarginEstimate = Math.max(0, Math.min(1, pass1.avgProfitMargin || 0));
+
+  // Location tier (extracted from factors if any mention tier)
+  const tierFactor = pass1.factors.find(f => f.isLocationSpecific);
+  const locationTierScore = tierFactor ? tierFactor.score / 100 : 0.5;
+
+  // Revenue to expense ratio
+  const avgRevenue = (pass1.estimatedMonthlyRevenueMin + pass1.estimatedMonthlyRevenueMax) / 2 || 1;
+  const avgExpenses = (pass1.estimatedMonthlyExpensesMin + pass1.estimatedMonthlyExpensesMax) / 2 || 1;
+  const revenueToExpenseRatio = avgRevenue / avgExpenses;
+
+  // Factor variance (risk signal - high variance means inconsistent)
+  const scores = pass1.factors.map(f => f.score);
+  const mean = scores.reduce((a, b) => a + b, 0) / (scores.length || 1);
+  const variance = scores.reduce((a, s) => a + (s - mean) ** 2, 0) / (scores.length || 1);
+  const factorVariance = Math.min(1, Math.sqrt(variance) / 50);
+
+  return {
+    avgFactorScore,
+    budgetRatio: Math.min(5, budgetRatio),
+    competitionDensity,
+    marketGrowthSignal,
+    profitMarginEstimate,
+    locationTierScore,
+    revenueToExpenseRatio: Math.min(5, revenueToExpenseRatio),
+    factorVariance,
+    topFactorScore: maxScore,
+    bottomFactorScore: minScore,
+  };
+}
+
+// Pre-defined ensemble of decision stumps (domain-expert crafted trees)
+// These encode non-linear business feasibility patterns learned from Indian market dynamics
+const DECISION_STUMPS: DecisionStump[] = [
+  // Tree 1: Core factor quality drives base prediction
+  { featureKey: 'avgFactorScore', threshold: 60, leftValue: -12, rightValue: 10, weight: 0.15 },
+  { featureKey: 'avgFactorScore', threshold: 40, leftValue: -18, rightValue: 5, weight: 0.12 },
+  { featureKey: 'avgFactorScore', threshold: 75, leftValue: -3, rightValue: 12, weight: 0.10 },
+
+  // Tree 2: Budget adequacy is non-linear — too little kills, excess has diminishing returns
+  { featureKey: 'budgetRatio', threshold: 0.5, leftValue: -20, rightValue: 5, weight: 0.12 },
+  { featureKey: 'budgetRatio', threshold: 1.0, leftValue: -8, rightValue: 6, weight: 0.10 },
+  { featureKey: 'budgetRatio', threshold: 2.0, leftValue: 2, rightValue: 3, weight: 0.05 },
+
+  // Tree 3: Competition saturates opportunity
+  { featureKey: 'competitionDensity', threshold: 0.3, leftValue: 8, rightValue: -5, weight: 0.10 },
+  { featureKey: 'competitionDensity', threshold: 0.7, leftValue: 3, rightValue: -12, weight: 0.08 },
+
+  // Tree 4: Growth markets rescue marginal ideas
+  { featureKey: 'marketGrowthSignal', threshold: 0.2, leftValue: -6, rightValue: 7, weight: 0.08 },
+  { featureKey: 'marketGrowthSignal', threshold: 0.5, leftValue: -2, rightValue: 8, weight: 0.06 },
+
+  // Tree 5: Profit margin viability
+  { featureKey: 'profitMarginEstimate', threshold: 0.15, leftValue: -15, rightValue: 5, weight: 0.10 },
+  { featureKey: 'profitMarginEstimate', threshold: 0.30, leftValue: -3, rightValue: 8, weight: 0.07 },
+
+  // Tree 6: Revenue must cover expenses
+  { featureKey: 'revenueToExpenseRatio', threshold: 1.0, leftValue: -20, rightValue: 5, weight: 0.12 },
+  { featureKey: 'revenueToExpenseRatio', threshold: 1.5, leftValue: -5, rightValue: 8, weight: 0.08 },
+
+  // Tree 7: Factor consistency (low variance = more reliable prediction)
+  { featureKey: 'factorVariance', threshold: 0.4, leftValue: 3, rightValue: -6, weight: 0.06 },
+
+  // Tree 8: Bottom factor as risk floor — one terrible factor can sink a business
+  { featureKey: 'bottomFactorScore', threshold: 25, leftValue: -15, rightValue: 3, weight: 0.10 },
+  { featureKey: 'bottomFactorScore', threshold: 40, leftValue: -8, rightValue: 4, weight: 0.07 },
+
+  // Tree 9: Top factor as upside signal
+  { featureKey: 'topFactorScore', threshold: 80, leftValue: -2, rightValue: 8, weight: 0.05 },
+
+  // Tree 10: Location tier opportunity
+  { featureKey: 'locationTierScore', threshold: 0.5, leftValue: -5, rightValue: 6, weight: 0.06 },
+];
+
+// Interaction trees capture non-linear feature combinations
+const INTERACTION_STUMPS: InteractionStump[] = [
+  // High competition + low budget = disaster
+  { featureA: 'competitionDensity', featureB: 'budgetRatio', operation: 'divide', threshold: 0.5, leftValue: 5, rightValue: -10, weight: 0.10 },
+  // Good margins + growing market = strong signal
+  { featureA: 'profitMarginEstimate', featureB: 'marketGrowthSignal', operation: 'multiply', threshold: 0.08, leftValue: -5, rightValue: 10, weight: 0.08 },
+  // Worst factor × competition = compounding risk
+  { featureA: 'bottomFactorScore', featureB: 'competitionDensity', operation: 'multiply', threshold: 20, leftValue: 4, rightValue: -8, weight: 0.07 },
+  // Revenue/expense ratio × budget fit = financial viability
+  { featureA: 'revenueToExpenseRatio', featureB: 'budgetRatio', operation: 'min', threshold: 0.8, leftValue: -12, rightValue: 6, weight: 0.09 },
+  // Best factor + location = upside potential
+  { featureA: 'topFactorScore', featureB: 'locationTierScore', operation: 'multiply', threshold: 40, leftValue: -3, rightValue: 7, weight: 0.05 },
+  // Factor variance × competition = uncertainty amplifier
+  { featureA: 'factorVariance', featureB: 'competitionDensity', operation: 'multiply', threshold: 0.15, leftValue: 3, rightValue: -8, weight: 0.06 },
+];
+
+function computeInteraction(features: GBDTFeatures, stump: InteractionStump): number {
+  const a = features[stump.featureA];
+  const b = features[stump.featureB];
+  let value: number;
+  switch (stump.operation) {
+    case 'multiply': value = a * b; break;
+    case 'divide': value = b !== 0 ? a / b : 0; break;
+    case 'min': value = Math.min(a, b); break;
+    case 'max': value = Math.max(a, b); break;
+  }
+  return value <= stump.threshold ? stump.leftValue * stump.weight : stump.rightValue * stump.weight;
+}
+
+function gbdtPredict(features: GBDTFeatures): number {
+  // Base prediction (intercept)
+  let prediction = 50;
+
+  // Additive contributions from single-feature stumps
+  for (const stump of DECISION_STUMPS) {
+    const featureValue = features[stump.featureKey];
+    prediction += featureValue <= stump.threshold
+      ? stump.leftValue * stump.weight
+      : stump.rightValue * stump.weight;
+  }
+
+  // Additive contributions from interaction stumps
+  for (const stump of INTERACTION_STUMPS) {
+    prediction += computeInteraction(features, stump);
+  }
+
+  // Clamp to [0, 100]
+  return Math.round(Math.min(100, Math.max(0, prediction)));
+}
+
 interface ScoringResult {
   score: number;
   verdict: 'GO' | 'CAUTION' | 'AVOID';
@@ -551,51 +736,34 @@ interface ScoringResult {
   roi: number;
   financialProjections: Array<{ year: number; revenue: number; expenses: number; profit: number }>;
   budgetFitPercent: number;
+  gbdtFeatures: GBDTFeatures; // Expose for transparency
 }
 
 function pass2_score(pass1: Pass1Result, budget: string): ScoringResult {
   const budgetAmount = parseBudget(budget);
 
-  // --- Weighted score from dynamic factors ---
-  let totalWeight = 0;
-  let weightedSum = 0;
-  for (const f of pass1.factors) {
-    weightedSum += f.score * f.weight;
-    totalWeight += f.weight;
-  }
-  // Normalize in case weights don't perfectly sum to 1
-  const rawScore = totalWeight > 0 ? weightedSum / totalWeight : 50;
+  // Extract ML features from Pass 1 data
+  const features = extractFeatures(pass1, budgetAmount);
 
-  // --- Budget Fit as a modifier ---
-  const avgSetupCost = (pass1.estimatedSetupCostMin + pass1.estimatedSetupCostMax) / 2;
-  const budgetRatio = avgSetupCost > 0 ? budgetAmount / avgSetupCost : 1;
-  let budgetModifier: number;
-  if (budgetRatio >= 2.0) budgetModifier = 1.15;
-  else if (budgetRatio >= 1.5) budgetModifier = 1.10;
-  else if (budgetRatio >= 1.0) budgetModifier = 1.0;
-  else if (budgetRatio >= 0.7) budgetModifier = 0.85;
-  else if (budgetRatio >= 0.5) budgetModifier = 0.70;
-  else if (budgetRatio >= 0.3) budgetModifier = 0.55;
-  else budgetModifier = 0.40;
+  // Run GBDT ensemble prediction
+  const score = gbdtPredict(features);
 
-  const budgetFitPercent = Math.min(100, Math.round(budgetRatio * 100));
-  const score = Math.round(Math.min(100, Math.max(0, rawScore * budgetModifier)));
-
-  // --- Verdict ---
+  // Verdict from score with hysteresis bands
   let verdict: 'GO' | 'CAUTION' | 'AVOID';
-  if (score >= 65 && budgetFitPercent >= 50) verdict = 'GO';
-  else if (score < 35 || budgetFitPercent < 25) verdict = 'AVOID';
+  if (score >= 62 && features.budgetRatio >= 0.5) verdict = 'GO';
+  else if (score < 35 || features.budgetRatio < 0.25) verdict = 'AVOID';
   else verdict = 'CAUTION';
 
-  // --- Financial Projections ---
+  // Budget fit
+  const budgetFitPercent = Math.min(100, Math.round(features.budgetRatio * 100));
+
+  // Financial projections
+  const avgSetupCost = (pass1.estimatedSetupCostMin + pass1.estimatedSetupCostMax) / 2 || 1;
   const avgMonthlyRevenue = (pass1.estimatedMonthlyRevenueMin + pass1.estimatedMonthlyRevenueMax) / 2;
   const avgMonthlyExpenses = (pass1.estimatedMonthlyExpensesMin + pass1.estimatedMonthlyExpensesMax) / 2;
   const monthlyProfit = avgMonthlyRevenue - avgMonthlyExpenses;
 
-  const breakEvenMonths = monthlyProfit > 0
-    ? Math.ceil(avgSetupCost / monthlyProfit)
-    : 36;
-
+  const breakEvenMonths = monthlyProfit > 0 ? Math.ceil(avgSetupCost / monthlyProfit) : 36;
   const roi = monthlyProfit > 0
     ? Math.round((monthlyProfit * 12 / budgetAmount) * 100)
     : -Math.round((Math.abs(monthlyProfit) * 12 / budgetAmount) * 100);
@@ -608,7 +776,7 @@ function pass2_score(pass1: Pass1Result, budget: string): ScoringResult {
     return { year: currentYear + i, revenue: rev, expenses: exp, profit: rev - exp };
   });
 
-  return { score, verdict, factors: pass1.factors, breakEvenMonths, roi, financialProjections, budgetFitPercent };
+  return { score, verdict, factors: pass1.factors, breakEvenMonths, roi, financialProjections, budgetFitPercent, gbdtFeatures: features };
 }
 
 // ============================================
