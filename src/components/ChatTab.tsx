@@ -62,6 +62,17 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    if (input.trim().length < 10) {
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '⚠️ Please describe your business idea in at least 10 characters for a meaningful analysis.',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      return;
+    }
+
     // Check if user is authenticated
     if (!user) {
       const errorMessage: ChatMessage = {
@@ -97,18 +108,20 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
         },
       });
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data.error) {
+      // Handle edge function errors - check data.error first since invoke may put error responses in data
+      if (data?.error) {
         throw new Error(data.error);
       }
 
+      if (error) {
+        // Try to parse the error context for a user-friendly message
+        throw new Error(error.message || 'Analysis failed. Please try again.');
+      }
+
       // Extract analysis from response wrapper
-      const analysis = data.analysis as BusinessAnalysis;
+      const analysis = data?.analysis as BusinessAnalysis;
       if (!analysis || !analysis.verdict) {
-        throw new Error('Invalid analysis response');
+        throw new Error('Invalid analysis response. Please try again.');
       }
       onAnalysisComplete(analysis);
 
