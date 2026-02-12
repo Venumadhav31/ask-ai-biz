@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
     <!-- Preconnect to external origins for faster resource loading -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://cdn.gpteng.co" crossorigin />
+    
+    <!-- Prefetch the main entry chunk to reduce chain depth -->
+    <link rel="modulepreload" href="/src/main.tsx" />
     
     <title>MarketReady - AI Business Feasibility Analysis</title>
     <meta name="description" content="AI-powered business feasibility analysis with market insights, financial projections, and expert recommendations for Indian entrepreneurs." />
