@@ -89,6 +89,87 @@ function parseJSON(raw: string): unknown {
 }
 
 // ============================================
+// SANITIZATION: Strip dangerous content from AI responses
+// ============================================
+
+function sanitizeString(str: unknown): string {
+  if (typeof str !== 'string') return '';
+  // Remove HTML tags, script injections, and dangerous patterns
+  return str
+    .replace(/<[^>]*>/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .replace(/data:\s*text\/html/gi, '')
+    .replace(/&#/g, '')
+    .trim()
+    .slice(0, 5000);
+}
+
+function sanitizeStringArray(arr: unknown): string[] {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(sanitizeString).filter(Boolean).slice(0, 20);
+}
+
+function sanitizePass1(data: Pass1Result): Pass1Result {
+  return {
+    ...data,
+    factors: (data.factors || []).slice(0, 10).map(f => ({
+      name: sanitizeString(f.name).slice(0, 100),
+      weight: Math.max(0, Math.min(1, Number(f.weight) || 0)),
+      score: Math.max(0, Math.min(100, Math.round(Number(f.score) || 0))),
+      reasoning: sanitizeString(f.reasoning).slice(0, 500),
+      isLocationSpecific: Boolean(f.isLocationSpecific),
+    })),
+    marketData: (data.marketData || []).slice(0, 20).map(d => ({
+      metric: sanitizeString(d.metric).slice(0, 100),
+      minValue: Number(d.minValue) || 0,
+      maxValue: Number(d.maxValue) || 0,
+      estimatedValue: Number(d.estimatedValue) || 0,
+      unit: sanitizeString(d.unit).slice(0, 20),
+      source: sanitizeString(d.source).slice(0, 200),
+      confidence: (['high', 'medium', 'low'].includes(d.confidence) ? d.confidence : 'low') as 'high' | 'medium' | 'low',
+    })),
+    estimatedSetupCostMin: Math.max(0, Number(data.estimatedSetupCostMin) || 0),
+    estimatedSetupCostMax: Math.max(0, Number(data.estimatedSetupCostMax) || 0),
+    estimatedMonthlyRevenueMin: Math.max(0, Number(data.estimatedMonthlyRevenueMin) || 0),
+    estimatedMonthlyRevenueMax: Math.max(0, Number(data.estimatedMonthlyRevenueMax) || 0),
+    estimatedMonthlyExpensesMin: Math.max(0, Number(data.estimatedMonthlyExpensesMin) || 0),
+    estimatedMonthlyExpensesMax: Math.max(0, Number(data.estimatedMonthlyExpensesMax) || 0),
+    avgProfitMargin: Math.max(0, Math.min(1, Number(data.avgProfitMargin) || 0)),
+    directCompetitors: Math.max(0, Math.round(Number(data.directCompetitors) || 0)),
+    indirectCompetitors: Math.max(0, Math.round(Number(data.indirectCompetitors) || 0)),
+    marketSize: sanitizeString(data.marketSize).slice(0, 200),
+    marketGrowth: sanitizeString(data.marketGrowth).slice(0, 200),
+  };
+}
+
+function sanitizePass3(data: Record<string, unknown>): Record<string, unknown> {
+  return {
+    summary: sanitizeString(data.summary),
+    marketExplanation: sanitizeString(data.marketExplanation),
+    competitionExplanation: sanitizeString(data.competitionExplanation),
+    financialExplanation: sanitizeString(data.financialExplanation),
+    competitiveAdvantage: sanitizeString(data.competitiveAdvantage),
+    threats: sanitizeStringArray(data.threats),
+    opportunities: sanitizeStringArray(data.opportunities),
+    risks: Array.isArray(data.risks) ? data.risks.slice(0, 10).map((r: any) => ({
+      risk: sanitizeString(r?.risk),
+      severity: ['low', 'medium', 'high'].includes(r?.severity) ? r.severity : 'medium',
+      mitigation: sanitizeString(r?.mitigation),
+    })) : [],
+    recommendations: sanitizeStringArray(data.recommendations),
+    roadmapPhases: Array.isArray(data.roadmapPhases) ? data.roadmapPhases.slice(0, 5).map((p: any) => ({
+      phase: sanitizeString(p?.phase).slice(0, 100),
+      duration: sanitizeString(p?.duration).slice(0, 50),
+      tasks: sanitizeStringArray(p?.tasks),
+      milestones: sanitizeStringArray(p?.milestones),
+    })) : [],
+    roadmapExplanation: sanitizeString(data.roadmapExplanation),
+    expertInsights: sanitizeString(data.expertInsights),
+  };
+}
+
+// ============================================
 // PASS 1: Dynamic Factor Discovery + Market Intel
 // ============================================
 
@@ -178,7 +259,8 @@ Budget: ${budget}
 Analyze this specific combination and return the dynamic factors and market data.`;
 
   const raw = await callAI(systemPrompt, userPrompt, 3000, 0.3);
-  return parseJSON(raw) as Pass1Result;
+  const parsed = parseJSON(raw) as Pass1Result;
+  return sanitizePass1(parsed);
 }
 
 // ============================================
@@ -348,7 +430,8 @@ Monthly Expenses Range: ₹${pass1.estimatedMonthlyExpensesMin.toLocaleString()}
 Provide location-specific EXPLANATIONS for this analysis.`;
 
   const raw = await callAI(systemPrompt, userPrompt, 3500, 0.8);
-  return parseJSON(raw) as Record<string, unknown>;
+  const parsed = parseJSON(raw) as Record<string, unknown>;
+  return sanitizePass3(parsed);
 }
 
 // ============================================

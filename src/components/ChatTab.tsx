@@ -51,10 +51,10 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
       
       const { error } = await supabase.from('business_analyses').insert(insertData);
       if (error) {
-        console.error('Failed to save analysis:', error);
+        if (import.meta.env.DEV) console.error('Failed to save analysis:', error);
       }
     } catch (error) {
-      console.error('Failed to save analysis:', error);
+      if (import.meta.env.DEV) console.error('Failed to save analysis:', error);
     }
   };
 
@@ -138,7 +138,7 @@ export function ChatTab({ onAnalysisComplete }: ChatTabProps) {
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
-      console.error('Analysis error:', error);
+      if (import.meta.env.DEV) console.error('Analysis error:', error);
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',

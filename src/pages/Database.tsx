@@ -94,7 +94,7 @@ export default function Database() {
 
       toast.success('Data loaded successfully');
     } catch (error: any) {
-      console.error('Error fetching data:', error);
+      if (import.meta.env.DEV) console.error('Error fetching data:', error);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
