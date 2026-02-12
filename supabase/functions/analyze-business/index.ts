@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
         explanation: aiAnalysis.marketAnalysis?.marketExplanation || aiAnalysis.expertInsights || '',
       },
       financialProjection: {
-        yearlyData: aiAnalysis.financialProjections || generateDefaultProjections(budget),
+        yearlyData: generateYearlyWithMonths(aiAnalysis.financialProjections || generateDefaultProjections(budget)),
         breakEvenMonths: aiAnalysis.financialAnalysis?.breakEvenMonths || 18,
         roi: aiAnalysis.financialAnalysis?.roi || 15,
         explanation: aiAnalysis.financialAnalysis?.financialExplanation || '',
@@ -348,6 +348,23 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Generate monthly breakdowns from yearly data with seasonal variance
+function generateYearlyWithMonths(yearlyData: Array<{year: number; revenue: number; expenses: number; profit: number}>) {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  // Seasonal weights for Indian market (festive season boost Oct-Dec, slow Jan-Feb)
+  const seasonalWeights = [0.07, 0.06, 0.08, 0.08, 0.08, 0.08, 0.08, 0.09, 0.09, 0.10, 0.10, 0.09];
+
+  return yearlyData.map((y) => ({
+    ...y,
+    months: monthNames.map((month, i) => ({
+      month,
+      revenue: Math.round(y.revenue * seasonalWeights[i]),
+      expenses: Math.round(y.expenses / 12),
+      profit: Math.round(y.revenue * seasonalWeights[i] - y.expenses / 12),
+    })),
+  }));
+}
 
 // Fallback projections if AI doesn't provide them
 function generateDefaultProjections(budget: string) {
