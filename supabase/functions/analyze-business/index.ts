@@ -763,13 +763,21 @@ function pass2_score(pass1: Pass1Result, budget: string): ScoringResult {
   const avgMonthlyExpenses = (pass1.estimatedMonthlyExpensesMin + pass1.estimatedMonthlyExpensesMax) / 2;
   const monthlyProfit = avgMonthlyRevenue - avgMonthlyExpenses;
 
-  const breakEvenMonths = monthlyProfit > 0 ? Math.ceil(avgSetupCost / monthlyProfit) : 36;
-  const roi = monthlyProfit > 0
-    ? Math.round((monthlyProfit * 12 / budgetAmount) * 100)
-    : -Math.round((Math.abs(monthlyProfit) * 12 / budgetAmount) * 100);
+  // Apply GBDT-derived confidence adjustment to financial projections
+  // Score < 50 = higher risk, slower ramp-up; Score > 70 = faster traction
+  const confidenceMultiplier = 0.6 + (score / 100) * 0.8; // Range: 0.6 - 1.4
+  const adjustedMonthlyRevenue = avgMonthlyRevenue * confidenceMultiplier;
+  const adjustedMonthlyProfit = adjustedMonthlyRevenue - avgMonthlyExpenses;
+
+  const breakEvenMonths = adjustedMonthlyProfit > 0 ? Math.ceil(avgSetupCost / adjustedMonthlyProfit) : 36;
+  const roi = adjustedMonthlyProfit > 0
+    ? Math.round((adjustedMonthlyProfit * 12 / budgetAmount) * 100)
+    : -Math.round((Math.abs(adjustedMonthlyProfit) * 12 / budgetAmount) * 100);
 
   const currentYear = new Date().getFullYear();
-  const growthRates = [1.0, 1.15, 1.30, 1.45, 1.60];
+  // Growth trajectory varies by score: low-scoring businesses grow slower
+  const baseGrowth = 0.08 + (score / 100) * 0.12; // 8%-20% annual growth based on score
+  const growthRates = [1.0, 1 + baseGrowth, 1 + baseGrowth * 2, 1 + baseGrowth * 3, 1 + baseGrowth * 4];
   const financialProjections = growthRates.map((g, i) => {
     const rev = Math.round(avgMonthlyRevenue * 12 * g);
     const exp = Math.round(avgMonthlyExpenses * 12 * (1 + i * 0.05));
@@ -817,11 +825,10 @@ Return valid JSON with this EXACT structure:
   "competitiveAdvantage": "<1-2 sentences on how to differentiate>",
   "threats": ["<specific threat 1>", "<specific threat 2>", "<specific threat 3>"],
   "opportunities": ["<specific opportunity 1>", "<specific opportunity 2>", "<specific opportunity 3>"],
-  "risks": [
-    {"risk": "<specific risk>", "severity": "<low/medium/high>", "mitigation": "<actionable mitigation>"},
-    {"risk": "<specific risk>", "severity": "<low/medium/high>", "mitigation": "<actionable mitigation>"},
+   "risks": [
     {"risk": "<specific risk>", "severity": "<low/medium/high>", "mitigation": "<actionable mitigation>"}
   ],
+  "riskNote": "Include 3-7 risks. For AVOID verdicts include more high-severity risks (4-7 total, at least 2 high). For GO verdicts include fewer (3-4 total, mostly low/medium). Severity distribution MUST reflect the score: score < 40 = mostly high, score 40-60 = mixed, score > 70 = mostly low/medium.",
   "recommendations": ["<actionable rec 1>", "<actionable rec 2>", "<actionable rec 3>", "<actionable rec 4>"],
   "roadmapPhases": [
     {"phase": "Phase 1: <name>", "duration": "<timeframe>", "tasks": ["<task>", "<task>"], "milestones": ["<milestone>"]},
