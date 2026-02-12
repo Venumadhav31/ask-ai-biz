@@ -74,6 +74,8 @@ export default function Auth() {
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password');
+          } else if (error.message.includes('Email not confirmed')) {
+            toast.error('Please verify your email before signing in. Check your inbox for a confirmation link.');
           } else {
             toast.error(error.message);
           }
@@ -94,12 +96,14 @@ export default function Auth() {
         if (error) {
           if (error.message.includes('already registered')) {
             toast.error('This email is already registered. Please login instead.');
+          } else if (error.message.includes('weak') || error.message.includes('pwned')) {
+            toast.error('Password is too weak or commonly used. Please choose a stronger password.');
           } else {
             toast.error(error.message);
           }
           return;
         }
-        toast.success('Account created successfully!');
+        toast.success('Account created! Please check your email to verify your account before signing in.', { duration: 6000 });
       }
     } catch (error) {
       toast.error('An unexpected error occurred');
