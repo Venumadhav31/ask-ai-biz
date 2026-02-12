@@ -89,6 +89,147 @@ function parseJSON(raw: string): unknown {
 }
 
 // ============================================
+// REAL-TIME DATA: Firecrawl Web Search + World Bank Population
+// ============================================
+
+interface RealTimeData {
+  webSearchResults: string;
+  populationData: string;
+}
+
+async function fetchRealTimeData(businessIdea: string, location: string): Promise<RealTimeData> {
+  const results: RealTimeData = { webSearchResults: '', populationData: '' };
+
+  // Extract city/region for population lookup
+  const locationParts = location.replace(/,/g, ' ').split(/\s+/).filter(Boolean);
+  const cityName = locationParts.length > 0 ? locationParts[locationParts.length - 1] : '';
+
+  // Run Firecrawl search + World Bank API in parallel
+  const [webResult, popResult] = await Promise.allSettled([
+    fetchFirecrawlSearch(businessIdea, location),
+    fetchPopulationData(cityName || location),
+  ]);
+
+  if (webResult.status === 'fulfilled') results.webSearchResults = webResult.value;
+  else console.error('Firecrawl search failed:', webResult.reason);
+
+  if (popResult.status === 'fulfilled') results.populationData = popResult.value;
+  else console.error('Population data failed:', popResult.reason);
+
+  return results;
+}
+
+async function fetchFirecrawlSearch(businessIdea: string, location: string): Promise<string> {
+  const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
+  if (!apiKey) {
+    console.warn('FIRECRAWL_API_KEY not configured, skipping web search');
+    return '';
+  }
+
+  try {
+    // Search for market data about this business + location
+    const query = `${businessIdea} market size competition ${location} India 2025`;
+    const response = await fetch('https://api.firecrawl.dev/v1/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        limit: 5,
+        scrapeOptions: { formats: ['markdown'] },
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Firecrawl search error:', response.status);
+      return '';
+    }
+
+    const data = await response.json();
+    if (!data.success || !data.data) return '';
+
+    // Compile search results into a context string
+    const snippets = data.data
+      .slice(0, 5)
+      .map((r: any, i: number) => {
+        const title = r.title || 'Untitled';
+        const url = r.url || '';
+        const content = (r.markdown || r.description || '').slice(0, 500);
+        return `[${i + 1}] ${title}\nSource: ${url}\n${content}`;
+      })
+      .join('\n\n');
+
+    return snippets || '';
+  } catch (err) {
+    console.error('Firecrawl search exception:', err);
+    return '';
+  }
+}
+
+async function fetchPopulationData(location: string): Promise<string> {
+  try {
+    // Use World Bank API for India population data
+    const indiaPopRes = await fetch(
+      'https://api.worldbank.org/v2/country/IND/indicator/SP.POP.TOTL?format=json&date=2020:2024&per_page=5',
+      { signal: AbortSignal.timeout(5000) }
+    );
+
+    let populationInfo = '';
+
+    if (indiaPopRes.ok) {
+      const popData = await indiaPopRes.json();
+      if (Array.isArray(popData) && popData[1]) {
+        const latest = popData[1][0];
+        populationInfo += `India Total Population (${latest.date}): ${(latest.value / 1e9).toFixed(2)} billion\n`;
+        // Growth rate from last 2 entries
+        if (popData[1].length >= 2) {
+          const prev = popData[1][1];
+          const growthRate = ((latest.value - prev.value) / prev.value * 100).toFixed(2);
+          populationInfo += `Annual Population Growth: ${growthRate}%\n`;
+        }
+      }
+    }
+
+    // Also fetch urban population percentage
+    const urbanRes = await fetch(
+      'https://api.worldbank.org/v2/country/IND/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2020:2024&per_page=5',
+      { signal: AbortSignal.timeout(5000) }
+    );
+
+    if (urbanRes.ok) {
+      const urbanData = await urbanRes.json();
+      if (Array.isArray(urbanData) && urbanData[1]?.[0]) {
+        populationInfo += `Urban Population: ${parseFloat(urbanData[1][0].value).toFixed(1)}%\n`;
+      }
+    }
+
+    // GDP per capita for economic context
+    const gdpRes = await fetch(
+      'https://api.worldbank.org/v2/country/IND/indicator/NY.GDP.PCAP.CD?format=json&date=2020:2024&per_page=5',
+      { signal: AbortSignal.timeout(5000) }
+    );
+
+    if (gdpRes.ok) {
+      const gdpData = await gdpRes.json();
+      if (Array.isArray(gdpData) && gdpData[1]?.[0]) {
+        populationInfo += `GDP Per Capita: $${Math.round(gdpData[1][0].value)}\n`;
+      }
+    }
+
+    if (location && location !== 'Not specified') {
+      populationInfo += `\nNote: For city-level population of "${location}", use census estimates in analysis.\n`;
+    }
+
+    return populationInfo;
+  } catch (err) {
+    console.error('Population API error:', err);
+    return '';
+  }
+}
+
+// ============================================
 // SANITIZATION: Strip dangerous content from AI responses
 // ============================================
 
@@ -207,7 +348,16 @@ interface Pass1Result {
   marketGrowth: string;
 }
 
-async function pass1_discoverFactorsAndData(businessIdea: string, location: string, budget: string): Promise<Pass1Result> {
+async function pass1_discoverFactorsAndData(businessIdea: string, location: string, budget: string, realTimeData?: RealTimeData): Promise<Pass1Result> {
+  const realTimeContext = realTimeData ? `
+
+REAL-TIME WEB DATA (use this to ground your estimates):
+${realTimeData.webSearchResults ? `\n--- Web Search Results ---\n${realTimeData.webSearchResults}` : '(No web data available)'}
+
+${realTimeData.populationData ? `\n--- Population & Economic Data (World Bank) ---\n${realTimeData.populationData}` : '(No population data available)'}
+
+IMPORTANT: Use the real-time data above to calibrate your market size estimates, competitor counts, and cost figures. Reference specific data points from these sources when available.` : '';
+
   const systemPrompt = `You are an expert Indian market research analyst with deep knowledge of real estate costs, competitor landscapes, regulatory environments, and consumer behavior across all Indian cities, towns, and villages.
 
 Your task: Given a business idea, location, and budget, you must:
@@ -228,6 +378,7 @@ Your task: Given a business idea, location, and budget, you must:
    - Local market size and growth
 
 Use your knowledge of Indian geography, economics, and demographics. Be SPECIFIC — mention actual neighborhoods, local costs, nearby landmarks if relevant.
+${realTimeContext}
 
 Return ONLY valid JSON:
 {
@@ -469,10 +620,17 @@ Deno.serve(async (req) => {
     const { businessIdea, location, budget } = validation.data;
 
     // ============================================
+    // PRE-PASS: Fetch real-time web & population data
+    // ============================================
+    console.log('Pre-pass: Fetching real-time data...');
+    const realTimeData = await fetchRealTimeData(businessIdea, location);
+    console.log(`Real-time data: web=${realTimeData.webSearchResults.length > 0 ? 'YES' : 'NO'}, population=${realTimeData.populationData.length > 0 ? 'YES' : 'NO'}`);
+
+    // ============================================
     // PASS 1: Discover dynamic factors + market data
     // ============================================
     console.log('Pass 1: Discovering factors and market data...');
-    const pass1 = await pass1_discoverFactorsAndData(businessIdea, location, budget);
+    const pass1 = await pass1_discoverFactorsAndData(businessIdea, location, budget, realTimeData);
     console.log(`Pass 1 complete: ${pass1.factors.length} factors, ${pass1.marketData.length} data points`);
 
     // ============================================
