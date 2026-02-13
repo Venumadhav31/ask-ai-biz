@@ -24,6 +24,9 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [showResend, setShowResend] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendEmail, setResendEmail] = useState('');
 
   useEffect(() => {
     // Check if already logged in
@@ -104,6 +107,8 @@ export default function Auth() {
           }
           return;
         }
+        setResendEmail(email);
+        setShowResend(true);
         toast.success('Account created! Please check your email to verify your account before signing in.', { duration: 6000 });
       }
     } catch (error) {
@@ -236,11 +241,51 @@ export default function Auth() {
             Sign in with Google
           </Button>
 
+          {showResend && (
+            <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-center">
+              <p className="text-sm text-muted-foreground mb-2">
+                Didn't receive the email? Check spam or resend it.
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={resendLoading}
+                onClick={async () => {
+                  setResendLoading(true);
+                  try {
+                    const { error } = await supabase.auth.resend({
+                      type: 'signup',
+                      email: resendEmail,
+                    });
+                    if (error) {
+                      if (error.message.includes('security') || error.message.includes('rate')) {
+                        toast.error('Please wait a minute before requesting another email.');
+                      } else {
+                        toast.error(error.message);
+                      }
+                    } else {
+                      toast.success('Verification email resent! Check your inbox.');
+                    }
+                  } catch {
+                    toast.error('Failed to resend email.');
+                  } finally {
+                    setResendLoading(false);
+                  }
+                }}
+              >
+                {resendLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Resend Verification Email
+              </Button>
+            </div>
+          )}
+
           <div className="mt-6 text-center">
             <button
               type="button"
               onClick={() => {
                 setIsLogin(!isLogin);
+                setShowResend(false);
                 setErrors({});
               }}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
