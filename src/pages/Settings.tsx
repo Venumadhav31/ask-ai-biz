@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Settings as SettingsIcon, Bot, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Bot, Save, Loader2, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +15,12 @@ export default function Settings() {
   const { user, loading: authLoading } = useAuth();
   const [preferredModel, setPreferredModel] = useState('gemini');
   const [saving, setSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -135,6 +142,94 @@ export default function Settings() {
                 <Save className="w-4 h-4 mr-2" />
               )}
               Save Settings
+            </Button>
+          </CardContent>
+        </Card>
+
+
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-primary" />
+              Change Password
+            </CardTitle>
+            <CardDescription>
+              Update your account password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pl-10 pr-10 bg-secondary/30 border-border/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pl-10 bg-secondary/30 border-border/50"
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={async () => {
+                if (newPassword.length < 6) {
+                  toast.error('Password must be at least 6 characters');
+                  return;
+                }
+                if (newPassword !== confirmPassword) {
+                  toast.error('Passwords do not match');
+                  return;
+                }
+                setChangingPassword(true);
+                try {
+                  const { error } = await supabase.auth.updateUser({ password: newPassword });
+                  if (error) {
+                    toast.error(error.message);
+                  } else {
+                    toast.success('Password updated successfully');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  }
+                } catch {
+                  toast.error('Failed to update password');
+                } finally {
+                  setChangingPassword(false);
+                }
+              }}
+              disabled={changingPassword || !newPassword || !confirmPassword}
+              className="w-full"
+            >
+              {changingPassword ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Lock className="w-4 h-4 mr-2" />
+              )}
+              Update Password
             </Button>
           </CardContent>
         </Card>
