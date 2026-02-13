@@ -202,6 +202,31 @@ export default function Auth() {
               )}
             </div>
 
+            {isLogin && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!email) {
+                      toast.error('Please enter your email first');
+                      return;
+                    }
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/reset-password`,
+                    });
+                    if (error) {
+                      toast.error(error.message);
+                    } else {
+                      toast.success('Password reset link sent! Check your email.', { duration: 5000 });
+                    }
+                  }}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+            )}
+
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
