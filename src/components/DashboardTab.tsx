@@ -261,6 +261,7 @@ export function DashboardTab({ analysis }: DashboardTabProps) {
     return [...acc, {
       year: year.year.toString(),
       Revenue: year.revenue,
+      Expenditure: year.expenses,
       Profit: year.profit,
       cumRevenue,
       cumProfit,
@@ -422,6 +423,10 @@ export function DashboardTab({ analysis }: DashboardTabProps) {
                     <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
                   </linearGradient>
+                  <linearGradient id="colorExpenditure" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--chart-5))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--chart-5))" stopOpacity={0} />
+                  </linearGradient>
                   <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
@@ -445,6 +450,13 @@ export function DashboardTab({ analysis }: DashboardTabProps) {
                   stroke="hsl(var(--chart-1))"
                   fillOpacity={1}
                   fill="url(#colorRevenue)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="Expenditure"
+                  stroke="hsl(var(--chart-5))"
+                  fillOpacity={1}
+                  fill="url(#colorExpenditure)"
                 />
                 <Area
                   type="monotone"
