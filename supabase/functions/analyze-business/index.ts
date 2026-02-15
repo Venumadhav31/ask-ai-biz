@@ -2,18 +2,11 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Dynamic CORS
-function getCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') || '';
-  const allowedOrigins = ['https://lovable.dev', 'http://localhost:5173', 'http://localhost:3000'];
-  const isLovablePreview = origin.includes('.lovable.app') || origin.includes('.lovableproject.com');
-  const isAllowed = allowedOrigins.includes(origin) || isLovablePreview;
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 // ============================================
 // INPUT VALIDATION
@@ -878,7 +871,7 @@ Provide location-specific EXPLANATIONS for this analysis.`;
 // ============================================
 
 Deno.serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
+  // corsHeaders defined at top level
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
